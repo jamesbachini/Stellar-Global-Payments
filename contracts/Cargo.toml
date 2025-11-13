@@ -1,5 +1,5 @@
 [package]
-name = "remittance_accounts"
+name = "project"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,29 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-soroban-sdk = "21.3.0"
-openzeppelin-stellar-accounts = "0.5.0"
-serde = { version = "1", default-features = false, features = ["derive"] }
-serde_json = "1"
+soroban-sdk = "23.1.0"
+sep-41-token = "1.3.1"
+stellar-tokens = "0.5.0"
+stellar-access = "0.5.0"
+stellar-contract-utils = "0.5.0"
+stellar-macros = "0.5.0"
+stellar-accounts = "0.5.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "23.1.0", features = ["testutils"] }
+sep-41-token = { version = "1.3.1", features = ["testutils"] }
+stellar-tokens = "0.5.0"
+stellar-access = "0.5.0"
+stellar-contract-utils = "0.5.0"
+stellar-macros = "0.5.0"
+stellar-accounts = "0.5.0"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true

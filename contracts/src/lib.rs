@@ -4,7 +4,7 @@ use soroban_sdk::{
 };
 use soroban_sdk::token::Client as TokenClient;
 
-use openzeppelin_stellar_accounts::prelude::{
+use stellar_accounts::prelude::{
     AccountContext, AccountPolicy, Calls, CustomAccountInterface, ExecutionAuthorization,
 };
 
