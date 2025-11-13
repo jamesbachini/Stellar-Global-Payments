@@ -1,167 +1,187 @@
-HIGH-LEVEL DESCRIPTION
-----------------------
-We want a “remittance” / “payments” demo we can embed on a product page.
+# CLAUDE.md
 
-Concept:
-- There are 4 smart accounts (A, B, C, D) on Stellar, implemented using OpenZeppelin’s `accounts` package for Soroban.
-- These 4 smart accounts each hold USDC balances.
-- From the front end, a user can trigger a remittance: sending USDC from one of the 4 smart accounts to any of the other 3, but **never to any other address**.
-- There is also an admin-only path to withdraw funds from each of the 4 smart accounts back to a single admin account.
-- The user never has direct access to any secret keys; transactions are executed by a backend “hot wallet” / server that controls the smart accounts (or calls a relayer).
-- The front end shows the 4 accounts on a world map (different countries), animates transfers, shows a loading bar while the transaction is pending, and, on success, shows a link to a blockchain explorer for that transaction.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-STACK & PROJECT STRUCTURE
--------------------------
-Use this stack:
+## Project Overview
 
-- Smart contracts:
-  - Language: Rust
-  - Framework: Soroban SDK
-  - Library: OpenZeppelin Stellar contracts (accounts package)
-  - Target: Soroban / Stellar contracts compatible with the 0.5.x OpenZeppelin release line
-- Backend:
-  - Node.js (TypeScript)
-  - Framework: Express (or minimal HTTP server) that exposes REST endpoints for:
-    - Triggering a transfer from Account X to Account Y
-    - Admin withdrawals back to an admin account
-- Frontend:
-  - React + TypeScript
-  - Build tool: Vite
-  - Styling: simple CSS or Tailwind, your choice (keep it lightweight)
+This is a Stellar blockchain remittance demo showcasing smart accounts built with OpenZeppelin's Stellar contracts framework. The system consists of 4 smart accounts (A, B, C, D) that can transfer USDC only among themselves, with an admin-only withdrawal mechanism. It's designed as an embeddable product demo showing cross-border payments on a world map.
 
-Project structure (monorepo):
+## Architecture
 
-- `contracts/`
-  - Soroban smart contracts + Cargo.toml
-- `backend/`
-  - Node.js/TypeScript Express server
-- `frontend/`
-  - React + Vite app
+### Smart Contracts (`contracts/`)
+- **Language**: Rust with Soroban SDK v23.1.0
+- **Framework**: OpenZeppelin Stellar contracts v0.5.0 (`stellar-accounts` package)
+- **Contract**: `RemittanceAccount` implements both `SmartAccount` trait and `CustomAccountInterface`:
+  - **SmartAccount trait**: Provides full context rule management (add/remove signers, policies, context rules)
+  - **CustomAccountInterface**: Implements `__check_auth` using OZ's `do_check_auth` for authorization matching
+- **Authorization Pattern**:
+  - During `init()`, creates a default context rule with admin as a `Delegated` signer
+  - Admin can authorize all operations on the smart account
+  - Framework's `do_check_auth()` handles authorization matching against context rules
+  - Destination restrictions enforced at application level in `execute_transfer()`
+- **Key functions**:
+  - `init(admin, token, destinations, label)`: Initialize smart account and create default context rule with admin signer
+  - `execute_transfer(to, amount)`: Transfer USDC to whitelisted destination (validates destination before calling token.transfer)
+  - `admin_withdraw(amount)`: Admin-only withdrawal to admin address
+  - `update_destinations(destinations)`: Update the allowed destination whitelist
+  - `get_label()`: Get the account's human-readable label
+  - Plus full SmartAccount trait methods: `add_context_rule`, `get_context_rule`, `add_signer`, `add_policy`, etc.
 
-Output all code as a multi-file project using this format:
+### Backend (`backend/`)
+- **Stack**: Node.js + TypeScript + Express
+- **Role**: Acts as a hot wallet/relayer to submit transactions on behalf of smart accounts
+- **Key module**: `lib/soroban.ts` handles all Stellar/Soroban interactions:
+  - `fetchBalances()`: Queries USDC balance for all 4 accounts via rpc simulated tx
+  - `submitTransfer()`: Builds and submits `execute_transfer` transaction
+  - `submitAdminWithdraw()`: Builds and submits `admin_withdraw` transaction
+  - Amount conversion: Handles 7-decimal USDC conversion between string and i128
+- **API Endpoints**:
+  - `POST /api/transfer`: Transfer between accounts A-D
+  - `POST /api/admin/withdraw`: Admin withdrawal (requires auth token)
+- **Configuration**: All settings via environment variables (see `.env.example`)
 
-- For each file, start with a header line:
-  `--- FILE: relative/path/from/repo/root ---`
-- Then the full contents of that file.
-- Do this for all important files: Cargo.toml, Rust sources, package.json, tsconfig, vite config, React components, server code, etc.
-- At the end, include a `--- FILE: README.md ---` with instructions.
+### Frontend (`frontend/`)
+- **Stack**: React 18 + TypeScript + Vite
+- **UI**: World map with 4 account markers (NY, Paris, Sao Paulo, Singapore)
+- **Key components**:
+  - `App.tsx`: Main map view orchestrating account markers and transfer modal
+  - `AccountMarker.tsx`: Clickable markers showing account label, region, and balance
+  - `TransferModal.tsx`: Transfer form with from/to/amount and transaction status
+  - `hooks/useAccounts.ts`: Balance fetching and refresh logic
+- **Routing**: React Router with `/` for main map and `/admin` for admin console
+- **Proxy**: Dev server proxies `/api/*` to backend (localhost:4000)
 
-SMART ACCOUNT DESIGN
---------------------
-Use OpenZeppelin’s Stellar `accounts` package (smart account framework) to implement 4 smart accounts that:
+### Shared Configuration
+- `shared/config/accounts.local.json`: Generated by deployment script, contains contract IDs for all 4 accounts
+- Backend reads smart account IDs from environment variables
+- Deploy script outputs this config for reference
 
-- Are “smart accounts” implementing `CustomAccountInterface` as per OZ docs.
-- Hold USDC balances using a standard Soroban fungible token (assume an existing USDC token contract; accept its contract ID as a config parameter).
-- Enforce the following rules:
+## Common Commands
 
-  1. Each of the 4 smart accounts (A, B, C, D) can only:
-     - Initiate `transfer` calls on the USDC token contract
-     - With `to` restricted to be **one of the other 3 smart account addresses** (no other recipients allowed).
-  2. No outgoing transfer is allowed to any arbitrary address other than the 4 smart accounts (for the regular user flow).
-  3. There is an **admin withdraw mechanism** that allows an admin account to withdraw funds from each smart account back to a single admin G-address.
+### Contracts
+```bash
+# Build the smart contract
+cd contracts
+stellar contract build
+# Output: contracts/target/wasm32v1-none/release/remittance_accounts.wasm
 
-Implementation details:
+# Clean build artifacts
+cargo clean
 
-- Use OZ’s context rules / policies model for smart accounts:
-  - Define context rules so that the only permitted token call from each smart account is `transfer` on the USDC contract to a restricted set of destinations `[A, B, C, D]`.
-  - For admin withdrawal, define a separate context / policy that:
-    - Only the admin signer (a specific G-address) can invoke.
-    - Allows the admin to trigger a sweep or partial withdrawal to the admin G-address.
+# Deploy all 4 smart accounts (requires stellar CLI and funded identity)
+cd /mnt/c/code/Stellar-Global-Payments
+./deploy.sh
+# This deploys 4 instances, initializes them, and writes shared/config/accounts.local.json
+```
 
-- Provide a small “manager / deployment” script (Rust or TypeScript) that:
-  - Deploys the smart account code.
-  - Instantiates 4 smart account instances (A, B, C, D).
-  - Configures their allowed destination sets.
-  - Stores their contract IDs in a JSON config used by the backend and frontend.
+### Backend
+```bash
+cd backend
 
-- Config:
-  - Make network (testnet vs mainnet), RPC URL, USDC contract ID, admin account, and smart account IDs configurable via environment variables or a JSON config file (for the demo you can assume testnet by default).
+# Install dependencies
+npm install
 
-BACKEND API
------------
-Create a simple Node.js/TypeScript backend in `backend/` with:
+# Development (auto-restart on changes)
+npm run dev
 
-- `package.json`, `tsconfig.json`, and a simple Express app.
-- Environment variables in `.env` for:
-  - `NETWORK` (e.g. `TESTNET`)
-  - `SOROBAN_RPC_URL`
-  - `ADMIN_SECRET_KEY` (secret key with permission to manage / call the smart accounts or an account that acts as a relayer)
-  - Smart account IDs for A, B, C, D
-  - USDC contract ID
+# Build TypeScript
+npm run build
 
-Expose endpoints like:
+# Run production build
+npm start
+```
 
-1. `POST /api/transfer`
-   - Request body: `{ from: "A" | "B" | "C" | "D", to: "A" | "B" | "C" | "D", amount: string }`
-   - Server will:
-     - Validate that `from` != `to` and both are among A,B,C,D.
-     - Build a transaction that:
-       - Uses the relevant smart account as the `from` address, calling the USDC `transfer` function to the destination smart account.
-       - Uses the admin / relayer account to submit the transaction and satisfy the smart account’s authorization (using OZ’s smart account invocation pattern).
-     - Submit the transaction via Soroban RPC.
-     - Return JSON response `{ success: boolean, txHash?: string, explorerUrl?: string, error?: string }`.
+**Important**: Before running backend, copy `.env.example` to `.env` and configure:
+- `ADMIN_SECRET_KEY`: Secret key for the relayer/admin account
+- `SMART_ACCOUNT_A/B/C/D`: Contract IDs from deployment
+- `USDC_CONTRACT_ID`: USDC token contract on testnet
+- `ADMIN_AUTH_TOKEN`: Secret for admin withdrawal endpoint
 
-2. `POST /api/admin/withdraw`
-   - Request body: `{ from: "A" | "B" | "C" | "D", amount: string, adminAuthToken: string }`
-   - Simple admin auth:
-     - Require `adminAuthToken` to match some secret in environment variables for demo purposes.
-   - On success, build and submit a transaction that:
-     - Calls the smart account to transfer USDC from that account to the admin G-address, using the admin withdrawal context/policy.
-   - Return JSON with tx hash and explorer URL.
+### Frontend
+```bash
+cd frontend
 
-Implementation details:
+# Install dependencies
+npm install
 
-- Use official Stellar / Soroban JS SDKs to:
-  - Build and submit transactions.
-  - Call simulated functions as necessary.
-- Handle basic error cases and serialize them for the frontend.
+# Development server (http://localhost:5173)
+npm run dev
 
-FRONTEND UI
------------
-Build a React + TypeScript app in `frontend/` with Vite, including:
+# Production build
+npm run build
 
-General:
-- A landing page that shows:
-  - A stylized world map background (CSS image or simple SVG – no need for complex map libraries).
-  - Four account markers (A, B, C, D) positioned in different “countries” (e.g., US, EU, LatAm, APAC) for visual effect.
-  - Each marker shows:
-    - Account label (A, B, C, D)
-    - Current USDC balance (fetched from rpc node).
+# Preview production build
+npm run preview
+```
 
-Transfer flow:
-- When the user clicks on an account that has a positive balance:
-  - Open a panel/modal labeled “Send USDC from Account X”.
-  - UI elements:
-    - “From” (readonly: A/B/C/D, depending on which was clicked).
-    - “To” dropdown containing only the other 3 accounts.
-    - Amount input (default to `1` USDC; allow user to change).
-    - “Send” button.
+## Deployment Flow
 
-- On clicking “Send”:
-  - Call `POST /api/transfer` with `{ from, to, amount }`.
-  - Show a loading bar / animated progress indicator while waiting.
-  - Disable the form while the transaction is pending.
+1. **Setup Stellar CLI**: Ensure `stellar` CLI is installed and configured
+2. **Configure identity**: `stellar keys generate james --network testnet` (or use existing)
+3. **Fund admin account**: Get testnet lumens from Stellar Laboratory
+4. **Deploy contracts**: Run `./deploy.sh` from repo root
+   - Builds WASM binary
+   - Deploys 4 smart account instances
+   - Initializes each with allowed destinations
+   - Outputs contract IDs to `shared/config/accounts.local.json`
+5. **Configure backend**: Copy contract IDs to backend `.env`
+6. **Fund smart accounts**: Send USDC testnet tokens to the 4 smart account contract addresses
+7. **Start services**: Run backend (`npm run dev`) then frontend (`npm run dev`)
 
-- On success:
-  - Show a success message such as “Transfer complete!”
-  - Provide a link button: “View on Explorer” that opens `explorerUrl` in a new tab.
-  - Refresh the displayed balances (call rpc node again).
+## Key Technical Details
 
-- On error:
-  - Show a user-friendly error message (e.g., “Transaction failed: ${error}”).
-  - Allow retry.
+### Smart Account Authorization Pattern
+The contract uses OpenZeppelin's smart account framework for flexible, programmable authorization:
 
-Admin page:
-- Route `/admin` (e.g., via React Router or a simple conditional on a query param).
-- Simple form:
-  - Select `from` account (A/B/C/D).
-  - Input `amount`.
-  - Input `adminAuthToken`.
-  - Button “Withdraw to Admin”.
-- On submit:
-  - Call `POST /api/admin/withdraw`.
-  - Show status, loading bar, and explorer link just like the main flow.
+**Context Rules**: During initialization, a default context rule is created with the admin as a `Delegated` signer. This allows the admin to authorize any operation on the smart account.
 
-Other UI requirements:
-- Keep UI visually appealing but simple.
-- Use responsive layout so it can be embedded inside an iframe or CMS block.
+**Authorization Flow**:
+1. Backend submits transaction calling `execute_transfer` or `admin_withdraw`
+2. Smart account's `__check_auth` is invoked by Soroban runtime
+3. Calls OZ's `do_check_auth()` which matches signatures against context rules
+4. If admin signer is authenticated, authorization succeeds
+5. Application logic then validates destination whitelist before executing token transfer
+
+**Key Advantages**:
+- Authorization logic is composable (can add policies, multiple signers, etc.)
+- Context rules can be updated post-deployment without contract upgrades
+- Supports diverse signer types (Delegated accounts, External verifiers for passkeys/zk-proofs)
+- Protocol 23 optimizations make cross-contract auth checks efficient
+
+**Destination Restrictions**: While the OZ framework handles *who* can authorize operations, destination whitelist validation is enforced at the application level in `execute_transfer()` before calling the token contract.
+
+### USDC Amount Handling
+USDC uses 7 decimals on Stellar. The backend converts:
+- User input "1.5" → i128: 15000000 (via `toI128()`)
+- Contract i128: 15000000 → "1.5" (via `fromI128()`)
+
+### Transaction Submission
+The backend:
+1. Builds a transaction calling the smart account contract method
+2. Prepares it via `rpc.prepareTransaction()` (simulates and adds footprint)
+3. Signs with admin keypair
+4. Submits via `rpc.sendTransaction()`
+5. Returns hash and explorer URL to frontend
+
+### Frontend State Management
+- `useAccounts` hook polls balances on mount and provides a `refresh()` function
+- After successful transfer, modal calls `refresh()` to update displayed balances
+- Accounts are hardcoded with positions/metadata in `App.tsx`
+
+## Network Configuration
+
+**Default**: Stellar testnet (`https://soroban-testnet.stellar.org`)
+
+To use a different network:
+1. Update `deploy.sh`: Change `NETWORK`, `RPC_URL`, and `USDC_CONTRACT_ID`
+2. Update backend `.env`: Match `NETWORK` and `SOROBAN_RPC_URL`
+3. Redeploy contracts with new network settings
+
+## Important Files
+
+- `contracts/src/lib.rs`: Smart account contract implementation
+- `backend/src/lib/soroban.ts`: All Stellar transaction logic
+- `backend/src/config.ts`: Environment variable parsing and types
+- `frontend/src/App.tsx`: Main UI orchestration
+- `deploy.sh`: Automated deployment script for all 4 accounts
+- `backend/.env.example`: Required environment variables
