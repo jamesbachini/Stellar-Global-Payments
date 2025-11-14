@@ -13,7 +13,8 @@
       "Bash(node backend/dist/config.js:*)",
       "Bash(node dist/index.js:*)",
       "Bash(npm install:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(stellar network ls:*)"
     ],
     "deny": [],
     "ask": []

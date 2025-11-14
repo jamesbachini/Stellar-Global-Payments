@@ -48,6 +48,21 @@ npm run build
 npm start
 ```
 
+## 5. Recover funds
+
+Setup a trustline, change the source account
+
+```bash
+stellar tx new change-trust \
+--source james \
+--line USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN \
+--network mainnet \
+--rpc-url https://rpc.lightsail.network/ \
+--network-passphrase "Public Global Stellar Network ; September 2015"
+```
+
+Then go to /admin and withdraw using the ADMIN_AUTH_TOKEN in ./backend/.env
+
 ## Configuration Architecture
 
 The backend uses a **shared configuration file** to eliminate duplicate settings:
