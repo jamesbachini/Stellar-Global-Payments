@@ -11,12 +11,14 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-SOURCE_ACCOUNT="james"
-ADMIN_PUBLIC_KEY="GBQ7FCMEP3Q455HVHI74XELBTEYSECT7QO2VYIBC6WCW7VVB6WXZ6KL4"
+SOURCE_ACCOUNT="${SOURCE_ACCOUNT:-james}"
+ADMIN_SIGNER="${ADMIN_SIGNER:-$SOURCE_ACCOUNT}"
+ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
 RPC_URL="https://soroban-testnet.stellar.org"
 NETWORK="testnet"
-WASM_PATH="./contracts/target/wasm32v1-none/release/remittance_accounts.wasm"
+WASM_PATH="./contracts/target/wasm32v1-none/release/project.wasm"
 USDC_CONTRACT_ID="CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA"
+NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
 
 CONTRACT_DIR="./contracts"
 CONFIG_DIR="./shared/config"
@@ -35,6 +37,25 @@ export STELLAR_RPC_URL="$RPC_URL"
 export STELLAR_NETWORK="$NETWORK"
 
 check_cli
+
+derive_public_key_for_signer() {
+  local signer="$1"
+  if [[ "$signer" =~ ^G[A-Z0-9]{55}$ ]]; then
+    echo "$signer"
+    return 0
+  fi
+
+  if [[ "$signer" =~ ^S[A-Z0-9]{55}$ ]]; then
+    echo -e "${RED}ADMIN_PUBLIC_KEY must be set when ADMIN_SIGNER is provided as a secret key${NC}"
+    exit 1
+  fi
+
+  stellar keys public-key "$signer"
+}
+
+if [[ -z "$ADMIN_PUBLIC_KEY" ]]; then
+  ADMIN_PUBLIC_KEY=$(derive_public_key_for_signer "$ADMIN_SIGNER")
+fi
 
 pushd "$CONTRACT_DIR" >/dev/null
   echo -e "${YELLOW}Step 1: Cleaning previous builds${NC}"
@@ -57,9 +78,13 @@ for label in "${LABELS[@]}"; do
   deploy_output=$(stellar contract deploy \
     --wasm "$WASM_PATH" \
     --source-account "$SOURCE_ACCOUNT" \
-    --network "$NETWORK"
+    --network "$NETWORK" \
+    --network-passphrase "$NETWORK_PASSPHRASE"
   )
   contract_id=$(echo "$deploy_output" | awk '/Contract Id/ {print $NF}' | tail -n1)
+  if [[ -z "$contract_id" ]]; then
+    contract_id=$(echo "$deploy_output" | grep -Eo 'C[A-Z0-9]{55}' | tail -n1 || true)
+  fi
   if [[ -z "$contract_id" ]]; then
     echo -e "${RED}Failed to parse contract id for account $label${NC}"
     echo "$deploy_output"
@@ -73,22 +98,32 @@ echo -e "${YELLOW}Step 4: Initializing accounts${NC}"
 for label in "${LABELS[@]}"; do
   contract_id="${CONTRACT_IDS[$label]}"
   echo "Initializing $label ($contract_id)..."
-  dest_args=()
+  destinations=()
   for other in "${LABELS[@]}"; do
     if [[ "$other" != "$label" ]]; then
-      dest_args+=(--destinations "${CONTRACT_IDS[$other]}")
+      destinations+=("${CONTRACT_IDS[$other]}")
     fi
   done
+  destinations_json="["
+  for idx in "${!destinations[@]}"; do
+    if (( idx > 0 )); then
+      destinations_json+=","
+    fi
+    destinations_json+="\"${destinations[$idx]}\""
+  done
+  destinations_json+="]"
   invoke_cmd=(
     stellar contract invoke
     --id "$contract_id"
     --source-account "$SOURCE_ACCOUNT"
+    --sign-with-key "$ADMIN_SIGNER"
     --network "$NETWORK"
+    --network-passphrase "$NETWORK_PASSPHRASE"
     -- init
     --admin "$ADMIN_PUBLIC_KEY"
     --token "$USDC_CONTRACT_ID"
+    --destinations "$destinations_json"
   )
-  invoke_cmd+=("${dest_args[@]}")
   invoke_cmd+=(--label "$label")
   "${invoke_cmd[@]}"
 done

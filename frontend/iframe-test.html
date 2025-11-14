@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stellar Remittance - Iframe Embed Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #1a1a1a;
+      color: white;
+      padding: 2rem;
+    }
+
+    h1 {
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .size-controls {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .size-btn {
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(120deg, #8ecae6, #c77dff);
+      border: none;
+      border-radius: 8px;
+      color: #050b18;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .size-btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .iframe-container {
+      border: 2px solid #333;
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 0 auto;
+      transition: all 0.3s ease;
+      background: #000;
+    }
+
+    iframe {
+      display: block;
+      border: none;
+      width: 100%;
+      height: 100%;
+    }
+
+    .info {
+      text-align: center;
+      margin-top: 1rem;
+      opacity: 0.7;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Stellar Global Payments - Responsive Iframe Test</h1>
+
+    <div class="size-controls">
+      <button class="size-btn" onclick="setSize('100%', '800px')">Full Width</button>
+      <button class="size-btn" onclick="setSize('1200px', '700px')">Desktop (1200x700)</button>
+      <button class="size-btn" onclick="setSize('768px', '600px')">Tablet (768x600)</button>
+      <button class="size-btn" onclick="setSize('375px', '667px')">Mobile (375x667)</button>
+      <button class="size-btn" onclick="setSize('320px', '568px')">Small Mobile (320x568)</button>
+      <button class="size-btn" onclick="setSize('600px', '400px')">Custom Small (600x400)</button>
+    </div>
+
+    <div id="iframe-container" class="iframe-container" style="width: 100%; height: 800px;">
+      <iframe
+        src="http://localhost:5173"
+        title="Stellar Remittance Demo"
+        allow="clipboard-write"
+      ></iframe>
+    </div>
+
+    <div class="info" id="size-info">
+      Current size: 100% × 800px
+    </div>
+  </div>
+
+  <script>
+    function setSize(width, height) {
+      const container = document.getElementById('iframe-container');
+      const info = document.getElementById('size-info');
+
+      container.style.width = width;
+      container.style.height = height;
+
+      info.textContent = `Current size: ${width} × ${height}`;
+    }
+  </script>
+</body>
+</html>

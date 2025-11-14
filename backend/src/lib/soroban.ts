@@ -1,154 +1,171 @@
 import {
   Address,
   Contract,
-  Keypair,
-  Networks,
-  SorobanRpc,
   TransactionBuilder,
   nativeToScVal,
   scValToNative,
 } from "@stellar/stellar-sdk";
-import bigInt, { BigInteger } from "big-integer";
-import { appConfig, AccountLabel } from "../config.js";
+import bigInt from "big-integer";
+import { appConfig } from "../config.js";
+import { AccountLabel, TransactionResult, BalanceMap } from "../types.js";
+import { TRANSACTION_CONFIG } from "../constants.js";
+import { TransactionError, BalanceFetchError, ValidationError } from "../errors.js";
+import { toI128, fromI128 } from "../utils/currency.js";
+import { stellarClient } from "./stellar.js";
 
-type TransferParams = {
-  from: AccountLabel;
-  to: AccountLabel;
-  amount: string;
-};
-
-type WithdrawParams = { from: AccountLabel; amount: string };
-
-type HashResult = { hash: string; explorerUrl: string };
-
-const decimals = 7;
-const TEN = bigInt(10);
-
-const toI128 = (amount: string): BigInteger => {
-  if (!amount) return bigInt.zero;
-  const [whole, frac = ""] = amount.split(".");
-  const fracPadded = (frac + "0".repeat(decimals)).slice(0, decimals);
-  return bigInt(whole || "0").multiply(TEN.pow(decimals)).add(bigInt(fracPadded));
-};
-
-const fromI128 = (value: BigInteger): string => {
-  const raw = value.toString();
-  const negative = raw.startsWith("-");
-  const digits = negative ? raw.slice(1) : raw;
-  const padded = digits.padStart(decimals + 1, "0");
-  const integer = padded.slice(0, -decimals);
-  const fraction = padded.slice(-decimals).replace(/0+$/, "");
-  const formatted = fraction ? `${integer}.${fraction}` : integer;
-  return negative ? `-${formatted}` : formatted;
-};
-
-const toExplorerUrl = (hash: string) => `${appConfig.explorerBaseUrl}${hash}`;
-
-const labelToAccount = (label: AccountLabel) => {
-  const id = appConfig.accounts[label];
-  if (!id) throw new Error(`Missing contract ID for account ${label}`);
-  return id;
-};
-
-const networkPassphrase = (() => {
-  switch (appConfig.network) {
-    case "MAINNET":
-      return Networks.PUBLIC;
-    case "FUTURENET":
-      return "Test SDF Future Network ; October 2022";
-    case "LOCALNET":
-      return "Standalone Network ; February 2017";
-    case "TESTNET":
-    default:
-      return Networks.TESTNET;
+function getContractAddress(label: AccountLabel): string {
+  const address = appConfig.accounts[label];
+  if (!address) {
+    throw new ValidationError(`Contract address not found for account ${label}`);
   }
-})();
+  return address;
+}
 
-const rpc = new SorobanRpc.Server(appConfig.rpcUrl, {
-  allowHttp: appConfig.rpcUrl.startsWith("http://"),
-});
+function createExplorerUrl(hash: string): string {
+  return `${appConfig.explorerBaseUrl}${hash}`;
+}
 
-const adminKeypair = (() => {
-  if (!appConfig.adminSecretKey) {
-    throw new Error("ADMIN_SECRET_KEY missing");
-  }
-  return Keypair.fromSecret(appConfig.adminSecretKey);
-})();
+async function buildBaseTransaction(): Promise<TransactionBuilder> {
+  const sourceAccount = await stellarClient.getAccount(stellarClient.getAdminPublicKey());
 
-const usdcContract = new Contract(appConfig.usdcContractId);
-
-async function buildBaseTransaction() {
-  const sourceAccount = await rpc.getAccount(adminKeypair.publicKey());
   return new TransactionBuilder(sourceAccount, {
-    fee: "60000",
-    networkPassphrase,
-  }).setTimeout(120);
+    fee: TRANSACTION_CONFIG.FEE,
+    networkPassphrase: stellarClient.networkPassphrase,
+  }).setTimeout(TRANSACTION_CONFIG.TIMEOUT);
 }
 
-async function prepareAndSend(txBuilder: TransactionBuilder): Promise<HashResult> {
+async function prepareAndSendTransaction(
+  txBuilder: TransactionBuilder
+): Promise<TransactionResult> {
   let tx = txBuilder.build();
-  tx = await rpc.prepareTransaction(tx);
-  tx.sign(adminKeypair);
-  const sendResponse = await rpc.sendTransaction(tx);
-  if (sendResponse.errorResult) {
-    throw new Error(sendResponse.errorResult);
+
+  tx = await stellarClient.prepareTransaction(tx);
+  tx.sign(stellarClient.getAdminKeypair());
+
+  const response = await stellarClient.sendTransaction(tx);
+
+  if (!response.hash) {
+    throw new TransactionError("Transaction was sent but no hash was returned");
   }
-  const hash = sendResponse.hash as string;
-  return { hash, explorerUrl: toExplorerUrl(hash) };
+
+  return {
+    hash: response.hash,
+    explorerUrl: createExplorerUrl(response.hash),
+  };
 }
 
-export async function fetchBalances() {
-  const balances: Record<AccountLabel, string> = {
-    A: "0",
-    B: "0",
-    C: "0",
-    D: "0",
-  };
+async function fetchAccountBalance(label: AccountLabel): Promise<string> {
+  try {
+    const contractAddress = getContractAddress(label);
+    const usdcContract = new Contract(appConfig.usdcContractId);
 
-  for (const label of Object.keys(balances) as AccountLabel[]) {
-    const account = labelToAccount(label);
     const builder = await buildBaseTransaction();
     const txBuilder = builder.addOperation(
       usdcContract.call(
         "balance",
-        nativeToScVal(Address.fromString(account), { type: "address" })
+        nativeToScVal(Address.fromString(contractAddress), { type: "address" })
       )
     );
+
     let tx = txBuilder.build();
-    tx = await rpc.prepareTransaction(tx);
-    const sim = await rpc.simulateTransaction(tx);
-    const scVal = sim.result?.retval;
-    if (scVal) {
-      const native = scValToNative(scVal);
-      const big = bigInt(native.toString());
-      balances[label] = fromI128(big);
+    tx = await stellarClient.prepareTransaction(tx);
+
+    const simulation = await stellarClient.simulateTransaction(tx);
+
+    if ("result" in simulation && simulation.result?.retval) {
+      const native = scValToNative(simulation.result.retval);
+      const balanceBigInt = bigInt(native.toString());
+      return fromI128(balanceBigInt);
     }
+
+    throw new Error("No balance returned from simulation");
+  } catch (error) {
+    console.error(`Failed to fetch balance for account ${label}:`, error);
+    return "0";
   }
-
-  return balances;
 }
 
-export async function submitTransfer({ from, to, amount }: TransferParams) {
-  if (from === to) throw new Error("Source and destination must differ");
-  const fromContract = new Contract(labelToAccount(from));
-  const toAddress = Address.fromString(labelToAccount(to));
-  const txBuilder = (await buildBaseTransaction()).addOperation(
-    fromContract.call(
-      "execute_transfer",
-      nativeToScVal(toAddress, { type: "address" }),
-      nativeToScVal(toI128(amount).toString(), { type: "i128" })
-    )
-  );
-  return prepareAndSend(txBuilder);
+export async function fetchBalances(): Promise<BalanceMap> {
+  try {
+    const labels: AccountLabel[] = ["A", "B", "C", "D"];
+
+    const balancePromises = labels.map(async (label) => ({
+      label,
+      balance: await fetchAccountBalance(label),
+    }));
+
+    const results = await Promise.all(balancePromises);
+
+    const balances: BalanceMap = {
+      A: "0",
+      B: "0",
+      C: "0",
+      D: "0",
+    };
+
+    results.forEach(({ label, balance }) => {
+      balances[label] = balance;
+    });
+
+    return balances;
+  } catch (error) {
+    throw new BalanceFetchError(
+      `Failed to fetch balances: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
 }
 
-export async function submitAdminWithdraw({ from, amount }: WithdrawParams) {
-  const fromContract = new Contract(labelToAccount(from));
-  const txBuilder = (await buildBaseTransaction()).addOperation(
-    fromContract.call(
-      "admin_withdraw",
-      nativeToScVal(toI128(amount).toString(), { type: "i128" })
-    )
-  );
-  return prepareAndSend(txBuilder);
+export async function submitTransfer(
+  from: AccountLabel,
+  to: AccountLabel,
+  amount: string
+): Promise<TransactionResult> {
+  try {
+    const fromContract = new Contract(getContractAddress(from));
+    const toAddress = Address.fromString(getContractAddress(to));
+    const amountI128 = toI128(amount);
+
+    const txBuilder = (await buildBaseTransaction()).addOperation(
+      fromContract.call(
+        "execute_transfer",
+        nativeToScVal(toAddress, { type: "address" }),
+        nativeToScVal(amountI128.toString(), { type: "i128" })
+      )
+    );
+
+    return await prepareAndSendTransaction(txBuilder);
+  } catch (error) {
+    if (error instanceof TransactionError) {
+      throw error;
+    }
+    throw new TransactionError(
+      `Transfer failed: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
+}
+
+export async function submitAdminWithdraw(
+  from: AccountLabel,
+  amount: string
+): Promise<TransactionResult> {
+  try {
+    const fromContract = new Contract(getContractAddress(from));
+    const amountI128 = toI128(amount);
+
+    const txBuilder = (await buildBaseTransaction()).addOperation(
+      fromContract.call(
+        "admin_withdraw",
+        nativeToScVal(amountI128.toString(), { type: "i128" })
+      )
+    );
+
+    return await prepareAndSendTransaction(txBuilder);
+  } catch (error) {
+    if (error instanceof TransactionError) {
+      throw error;
+    }
+    throw new TransactionError(
+      `Admin withdrawal failed: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
 }

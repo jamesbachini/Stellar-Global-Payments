@@ -18,7 +18,7 @@ export function AccountMarker({ meta, balance, onSelect }: Props) {
       <span className="account-balance">{formattedBalance} USDC</span>
       <span className="account-region">{meta.region}</span>
       <button className="send-action" type="button" onClick={() => onSelect(meta.label)}>
-        Send Payment
+        SEND USDC
       </button>
     </div>
   );

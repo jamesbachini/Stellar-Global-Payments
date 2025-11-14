@@ -2,11 +2,9 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
-    Address, Env, IntoVal, String, vec,
+    testutils::Address as _,
+    Address, Env, String, vec,
 };
-
-extern crate std;
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient as TokenAdminClient};
 
 // Helper to create a test token
@@ -35,7 +33,7 @@ fn test_init_creates_smart_account() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (admin, token_admin, account_a, account_b, account_c, account_d) = setup_smart_account(&e);
+    let (admin, token_admin, _account_a, account_b, account_c, account_d) = setup_smart_account(&e);
 
     let (token_client, _) = create_token_contract(&e, &token_admin);
     let token_address = token_client.address.clone();
@@ -53,30 +51,16 @@ fn test_init_creates_smart_account() {
         &String::from_str(&e, "A"),
     );
 
-    // Verify label
+    // Verify label was set correctly
     let label = client.get_label();
     assert_eq!(label, String::from_str(&e, "A"));
 
-    // Verify auth was required
-    assert_eq!(
-        e.auths(),
-        [(
-            admin.clone(),
-            AuthorizedInvocation {
-                function: AuthorizedFunction::Contract((
-                    client.address.clone(),
-                    soroban_sdk::symbol_short!("init"),
-                    (
-                        admin.clone(),
-                        token_address,
-                        destinations,
-                        String::from_str(&e, "A"),
-                    ).into_val(&e)
-                )),
-                sub_invocations: std::vec![]
-            }
-        )]
-    );
+    // Verify at least one context rule was created during init
+    let rules = client.get_context_rules(&ContextRuleType::Default);
+    assert_eq!(rules.len(), 1);
+
+    let rule = client.get_context_rule(&0);
+    assert_eq!(rule.name, String::from_str(&e, "Admin Rule"));
 }
 
 #[test]

@@ -14,11 +14,11 @@ export function useAccounts() {
   const fetchBalances = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await axios.get<BalancesResponse>("/api/balances");
+      const { data } = await axios.get<{ success: boolean; data: { balances: Balances } }>("/api/balances");
       if (!data.success) {
-        throw new Error(data.error || "Unable to fetch balances");
+        throw new Error("Unable to fetch balances");
       }
-      setBalances(data.balances);
+      setBalances(data.data.balances);
       setError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";

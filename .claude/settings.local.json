@@ -2,7 +2,18 @@
   "permissions": {
     "allow": [
       "Bash(stellar contract build:*)",
-      "Bash(cargo test:*)"
+      "Bash(cargo test:*)",
+      "Bash(npm run build)",
+      "Bash(npm install)",
+      "Bash(npm i:*)",
+      "Bash(npm run dev:*)",
+      "Bash(test:*)",
+      "Bash(node -e:*)",
+      "Bash(cat:*)",
+      "Bash(node backend/dist/config.js:*)",
+      "Bash(node dist/index.js:*)",
+      "Bash(npm install:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
