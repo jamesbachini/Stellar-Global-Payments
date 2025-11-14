@@ -37,7 +37,7 @@ html, body {
   position: relative;
   width: 100%;
   height: 100%;
-  background-image: url("./worldmap.png");
+  background-image: url("/worldmap.png");
   background-size: cover;
   background-position: center;
   overflow: hidden;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Stellar Soroban Remittance Deployment Script (Mainnet)
+# Stellar Soroban Remittance Deployment Script (Testnet)
 # Builds the remittance smart-account contract, deploys four labeled
 # instances (A-D), and initializes them with the OpenZeppelin policy.
 
@@ -14,11 +14,11 @@ NC='\033[0m'
 SOURCE_ACCOUNT="${SOURCE_ACCOUNT:-james}"
 ADMIN_SIGNER="${ADMIN_SIGNER:-$SOURCE_ACCOUNT}"
 ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
-RPC_URL="https://rpc.lightsail.network/"
-NETWORK="mainnet"
+RPC_URL="https://soroban-testnet.stellar.org"
+NETWORK="testnet"
 WASM_PATH="./contracts/target/wasm32v1-none/release/project.wasm"
-USDC_CONTRACT_ID="CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75"
-NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+USDC_CONTRACT_ID="CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA"
+NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
 
 CONTRACT_DIR="./contracts"
 CONFIG_DIR="./shared/config"

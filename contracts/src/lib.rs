@@ -6,8 +6,6 @@ use soroban_sdk::{
 };
 use soroban_sdk::auth::{Context, CustomAccountInterface};
 use soroban_sdk::crypto::Hash;
-
-// Import OpenZeppelin stellar-accounts framework
 use stellar_accounts::smart_account::{
     add_context_rule, add_policy, add_signer, do_check_auth, get_context_rule, get_context_rules,
     remove_context_rule, remove_policy, remove_signer, update_context_rule_name,
@@ -17,7 +15,6 @@ use stellar_accounts::smart_account::{
 
 mod test;
 
-// Storage keys
 const ADMIN_KEY: Symbol = symbol_short!("admin");
 const TOKEN_KEY: Symbol = symbol_short!("token");
 const DEST_KEY: Symbol = symbol_short!("dest");
@@ -33,31 +30,23 @@ pub enum RemittanceError {
 #[contract]
 pub struct RemittanceAccount;
 
-// Helper functions to read from storage
 fn read_admin(env: &Env) -> Result<Address, RemittanceError> {
-    env.storage()
-        .instance()
-        .get::<_, Address>(&ADMIN_KEY)
+    env.storage().instance().get::<_, Address>(&ADMIN_KEY)
         .ok_or(RemittanceError::NotInitialized)
 }
 
 fn read_token(env: &Env) -> Result<Address, RemittanceError> {
-    env.storage()
-        .instance()
-        .get::<_, Address>(&TOKEN_KEY)
+    env.storage().instance().get::<_, Address>(&TOKEN_KEY)
         .ok_or(RemittanceError::NotInitialized)
 }
 
 fn read_destinations(env: &Env) -> Result<Vec<Address>, RemittanceError> {
-    env.storage()
-        .instance()
-        .get::<_, Vec<Address>>(&DEST_KEY)
+    env.storage().instance().get::<_, Vec<Address>>(&DEST_KEY)
         .ok_or(RemittanceError::NotInitialized)
 }
 
 #[contractimpl]
 impl RemittanceAccount {
-    /// Initialize the smart account with admin, token, allowed destinations, and label
     pub fn init(
         env: Env,
         admin: Address,
@@ -65,20 +54,13 @@ impl RemittanceAccount {
         destinations: Vec<Address>,
         label: String,
     ) {
-        // Require admin authorization
         admin.require_auth();
-
-        // Store configuration
         env.storage().instance().set(&ADMIN_KEY, &admin);
         env.storage().instance().set(&TOKEN_KEY, &token);
         env.storage().instance().set(&DEST_KEY, &destinations);
         env.storage().instance().set(&LABEL_KEY, &label);
-
-        // Create default context rule with admin as delegated signer
-        // This allows the admin to authorize all operations on this smart account
         let signers = vec![&env, Signer::Delegated(admin)];
         let policies: Map<Address, Val> = Map::new(&env);
-
         add_context_rule(
             &env,
             &ContextRuleType::Default,
@@ -89,40 +71,31 @@ impl RemittanceAccount {
         );
     }
 
-    /// Execute a transfer to one of the allowed destinations
-    /// The destination must be in the whitelist set during initialization
+    /// Execute a transfer to one of the whitelisted destinations
     pub fn execute_transfer(env: Env, to: Address, amount: i128) -> Result<(), RemittanceError> {
-        // Validate destination is in allowed set
         let allowed = read_destinations(&env)?;
         if !allowed.iter().any(|addr| addr == to) {
             return Err(RemittanceError::NotAllowed);
         }
-
-        // Get token contract and execute transfer
         let token = read_token(&env)?;
         let self_address = env.current_contract_address();
-
-        // Call token transfer - authorization will be checked via __check_auth
         let client = token::Client::new(&env, &token);
         client.transfer(&self_address, &to, &amount);
-
         Ok(())
     }
 
-    /// Admin-only withdrawal to the admin address
+    /// Withdrawal to the admin address
     pub fn admin_withdraw(env: Env, amount: i128) -> Result<(), RemittanceError> {
         let admin = read_admin(&env)?;
+        admin.require_auth();
         let token = read_token(&env)?;
         let self_address = env.current_contract_address();
-
-        // Call token transfer - authorization will be checked via __check_auth
         let client = token::Client::new(&env, &token);
         client.transfer(&self_address, &admin, &amount);
-
         Ok(())
     }
 
-    /// Update the allowed destinations (admin only)
+    /// Update the allowed destinations
     pub fn update_destinations(
         env: Env,
         destinations: Vec<Address>,
@@ -142,7 +115,7 @@ impl RemittanceAccount {
     }
 }
 
-// Implement the OpenZeppelin SmartAccount trait
+// OpenZeppelin SmartAccount Trait
 #[contractimpl]
 impl SmartAccount for RemittanceAccount {
     fn add_context_rule(
@@ -214,19 +187,18 @@ impl SmartAccount for RemittanceAccount {
     }
 }
 
-// Implement CustomAccountInterface for smart account authorization
+// CustomAccountInterface For Authorization
 #[contractimpl]
 impl CustomAccountInterface for RemittanceAccount {
     type Signature = Signatures;
     type Error = SmartAccountError;
-
     fn __check_auth(
         env: Env,
         signature_payload: Hash<32>,
         signatures: Signatures,
         auth_contexts: Vec<Context>,
     ) -> Result<(), SmartAccountError> {
-        // Use OpenZeppelin's authorization matching algorithm
+        // OZ's authorization matching
         do_check_auth(&env, &signature_payload, &signatures, &auth_contexts)?;
         Ok(())
     }

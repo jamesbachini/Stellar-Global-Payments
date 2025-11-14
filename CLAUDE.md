@@ -122,8 +122,8 @@ npm run preview
 ## Deployment Flow
 
 1. **Setup Stellar CLI**: Ensure `stellar` CLI is installed and configured
-2. **Configure identity**: `stellar keys generate james --network testnet` (or use existing)
-3. **Fund admin account**: Get testnet lumens from Stellar Laboratory
+2. **Configure identity**: `stellar keys generate james --network mainnet` (or use existing)
+3. **Fund admin account**: Purchase XLM from an exchange or use an existing funded account
 4. **Deploy contracts**: Run `./deploy.sh` from repo root
    - Builds WASM binary
    - Deploys 4 smart account instances
@@ -133,7 +133,7 @@ npm run preview
    - `ADMIN_SECRET_KEY`: Your admin account secret key (from step 2)
    - `ADMIN_AUTH_TOKEN`: Random secure token (generate with `openssl rand -hex 32`)
    - All other config is auto-loaded from `shared/config/accounts.local.json`
-6. **Fund smart accounts**: Send USDC testnet tokens to the 4 smart account contract addresses
+6. **Fund smart accounts**: Send USDC mainnet tokens to the 4 smart account contract addresses
 7. **Start services**: Run backend (`npm run dev`) then frontend (`npm run dev`)
 
 ## Key Technical Details
@@ -178,12 +178,14 @@ The backend:
 
 ## Network Configuration
 
-**Default**: Stellar testnet (`https://soroban-testnet.stellar.org`)
+**Default**: Stellar mainnet (`https://rpc.lightsail.network/`)
 
-To use a different network:
-1. Update `deploy.sh`: Change `NETWORK`, `RPC_URL`, and `USDC_CONTRACT_ID`
-2. Update backend `.env`: Match `NETWORK` and `SOROBAN_RPC_URL`
+To use a different network (e.g., testnet for development):
+1. Update `deploy.sh`: Change `NETWORK`, `RPC_URL`, `NETWORK_PASSPHRASE`, and `USDC_CONTRACT_ID`
+2. Update backend `.env`: Match `NETWORK` and `SOROBAN_RPC_URL` if needed
 3. Redeploy contracts with new network settings
+
+**Note**: A testnet deployment script is available as `deploy_testnet.sh` for development/testing purposes.
 
 ## Important Files
 

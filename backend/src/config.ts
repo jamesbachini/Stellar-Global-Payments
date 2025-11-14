@@ -101,7 +101,7 @@ function loadConfig(): AppConfig {
     const adminPublicKey = getEnv("ADMIN_PUBLIC_KEY", sharedConfig.adminPublicKey);
 
     return {
-      port: Number(getEnv("PORT", "4000")),
+      port: Number(getEnv("PORT", "80")),
       network,
       rpcUrl,
       adminPublicKey,

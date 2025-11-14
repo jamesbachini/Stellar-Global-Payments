@@ -1,9 +1,13 @@
 import express from "express";
 import cors from "cors";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { appConfig } from "./config.js";
 import { handleAdminWithdraw, handleBalances, handleTransfer } from "./controllers/payments.js";
 import { errorHandler, asyncHandler } from "./middleware/errorHandler.js";
 import { requireAdminAuth } from "./middleware/auth.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -23,6 +27,15 @@ app.get("/api/balances", asyncHandler(handleBalances));
 app.post("/api/transfer", asyncHandler(handleTransfer));
 
 app.post("/api/admin/withdraw", requireAdminAuth, asyncHandler(handleAdminWithdraw));
+
+// Serve static frontend files
+const frontendDistPath = join(__dirname, "../../frontend/dist");
+app.use(express.static(frontendDistPath));
+
+// SPA fallback - serve index.html for all non-API routes
+app.get("*", (_req, res) => {
+  res.sendFile(join(frontendDistPath, "index.html"));
+});
 
 app.use(errorHandler);
 

@@ -12,7 +12,7 @@ This monorepo contains:
 - Rust toolchain with `soroban-cli`
 - Node.js 18+
 - Yarn or npm (examples assume npm)
-- Access to Stellar Soroban RPC (default points to public testnet)
+- Access to Stellar Soroban RPC (default points to mainnet)
 
 ## Contracts
 
@@ -24,13 +24,11 @@ cargo build --target wasm32-unknown-unknown --release
 The resulting `remittance_accounts.wasm` is consumed by the deployment script:
 
 ```bash
-cd contracts
-npm install
-NETWORK_PASSPHRASE="Test SDF Network ; September 2015" \
-SOROBAN_RPC_URL="https://soroban-testnet.stellar.org" \
-ADMIN_SECRET_KEY="S..." \
-USDC_CONTRACT_ID="CB..." \
-ts-node scripts/deploy.ts
+# Use the automated deployment script (mainnet by default)
+./deploy.sh
+
+# Or for testnet development:
+./deploy_testnet.sh
 ```
 
 The script produces `shared/config/accounts.local.json` with the four smart-account IDs and metadata.
