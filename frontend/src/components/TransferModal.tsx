@@ -131,7 +131,10 @@ export function TransferModal({ from, onClose, refresh }: Props) {
             <a className="explorer-button" href={explorerUrl} target="_blank" rel="noreferrer">
               View Transaction on Stellar.Expert
             </a>
-            <button className="close-button" onClick={onClose}>
+            <button className="close-button" onClick={async () => {
+              await refresh();
+              onClose();
+            }}>
               Close
             </button>
           </div>
