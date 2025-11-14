@@ -199,7 +199,7 @@ To automatically start the server on system reboot:
 ```bash
 npm install -g pm2
 cd ~/Stellar-Global-Payments/backend
-pm2 start npm --name "stellar-backend" -- start
+pm2 start npm --name "stellar-backend" -- run start
 ```
 
 Save and exit. The backend will now start automatically on server reboot.
