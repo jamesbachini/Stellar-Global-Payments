@@ -18,11 +18,18 @@ export default function Admin() {
     try {
       setStatus("pending");
       setMessage("");
-      const { data } = await axios.post<TransferResponse>("/api/admin/withdraw", {
-        from,
-        amount,
-        adminAuthToken: token,
-      });
+      const { data } = await axios.post<TransferResponse>(
+        "/api/admin/withdraw",
+        {
+          from,
+          amount,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
       if (!data.success) throw new Error(data.error || "Withdraw failed");
       setExplorerUrl(data.explorerUrl || "");
       setStatus("success");
