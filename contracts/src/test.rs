@@ -1,11 +1,10 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{
-    testutils::Address as _,
-    Address, Env, String, vec,
-};
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient as TokenAdminClient};
+use soroban_sdk::{
+    contract, contractimpl, testutils::Address as _, vec, Address, Env, String, Vec,
+};
 
 // Helper to create a test token
 fn create_token_contract<'a>(e: &Env, admin: &Address) -> (TokenClient<'a>, TokenAdminClient<'a>) {
@@ -25,7 +24,14 @@ fn setup_smart_account(e: &Env) -> (Address, Address, Address, Address, Address,
     let account_c = Address::generate(e);
     let account_d = Address::generate(e);
 
-    (admin, token_admin, account_a, account_b, account_c, account_d)
+    (
+        admin,
+        token_admin,
+        account_a,
+        account_b,
+        account_c,
+        account_d,
+    )
 }
 
 #[test]
@@ -68,7 +74,8 @@ fn test_execute_transfer_to_allowed_destination() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (admin, token_admin, _account_a_addr, account_b_addr, account_c_addr, account_d_addr) = setup_smart_account(&e);
+    let (admin, token_admin, _account_a_addr, account_b_addr, account_c_addr, account_d_addr) =
+        setup_smart_account(&e);
 
     let (token_client, token_admin_client) = create_token_contract(&e, &token_admin);
     let token_address = token_client.address.clone();
@@ -77,7 +84,12 @@ fn test_execute_transfer_to_allowed_destination() {
     let account_a = e.register(RemittanceAccount, ());
     let client_a = RemittanceAccountClient::new(&e, &account_a);
 
-    let destinations = vec![&e, account_b_addr.clone(), account_c_addr.clone(), account_d_addr.clone()];
+    let destinations = vec![
+        &e,
+        account_b_addr.clone(),
+        account_c_addr.clone(),
+        account_d_addr.clone(),
+    ];
     client_a.init(
         &admin,
         &token_address,
@@ -102,7 +114,8 @@ fn test_execute_transfer_to_disallowed_destination_fails() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (admin, token_admin, _account_a_addr, account_b_addr, account_c_addr, account_d_addr) = setup_smart_account(&e);
+    let (admin, token_admin, _account_a_addr, account_b_addr, account_c_addr, account_d_addr) =
+        setup_smart_account(&e);
     let unauthorized_addr = Address::generate(&e);
 
     let (token_client, token_admin_client) = create_token_contract(&e, &token_admin);
@@ -112,7 +125,12 @@ fn test_execute_transfer_to_disallowed_destination_fails() {
     let account_a = e.register(RemittanceAccount, ());
     let client_a = RemittanceAccountClient::new(&e, &account_a);
 
-    let destinations = vec![&e, account_b_addr.clone(), account_c_addr.clone(), account_d_addr.clone()];
+    let destinations = vec![
+        &e,
+        account_b_addr.clone(),
+        account_c_addr.clone(),
+        account_d_addr.clone(),
+    ];
     client_a.init(
         &admin,
         &token_address,
@@ -138,7 +156,8 @@ fn test_execute_transfer_to_self_fails() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (admin, token_admin, _, account_b_addr, account_c_addr, account_d_addr) = setup_smart_account(&e);
+    let (admin, token_admin, _, account_b_addr, account_c_addr, account_d_addr) =
+        setup_smart_account(&e);
 
     let (token_client, token_admin_client) = create_token_contract(&e, &token_admin);
     let token_address = token_client.address.clone();
@@ -147,7 +166,12 @@ fn test_execute_transfer_to_self_fails() {
     let account_a = e.register(RemittanceAccount, ());
     let client_a = RemittanceAccountClient::new(&e, &account_a);
 
-    let destinations = vec![&e, account_b_addr.clone(), account_c_addr.clone(), account_d_addr.clone()];
+    let destinations = vec![
+        &e,
+        account_b_addr.clone(),
+        account_c_addr.clone(),
+        account_d_addr.clone(),
+    ];
     client_a.init(
         &admin,
         &token_address,
@@ -169,7 +193,8 @@ fn test_admin_withdraw() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (admin, token_admin, _account_a_addr, account_b_addr, account_c_addr, account_d_addr) = setup_smart_account(&e);
+    let (admin, token_admin, _account_a_addr, account_b_addr, account_c_addr, account_d_addr) =
+        setup_smart_account(&e);
 
     let (token_client, token_admin_client) = create_token_contract(&e, &token_admin);
     let token_address = token_client.address.clone();
@@ -178,7 +203,12 @@ fn test_admin_withdraw() {
     let account_a = e.register(RemittanceAccount, ());
     let client_a = RemittanceAccountClient::new(&e, &account_a);
 
-    let destinations = vec![&e, account_b_addr.clone(), account_c_addr.clone(), account_d_addr.clone()];
+    let destinations = vec![
+        &e,
+        account_b_addr.clone(),
+        account_c_addr.clone(),
+        account_d_addr.clone(),
+    ];
     client_a.init(
         &admin,
         &token_address,
@@ -203,7 +233,8 @@ fn test_update_destinations() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (admin, token_admin, _account_a_addr, account_b_addr, account_c_addr, account_d_addr) = setup_smart_account(&e);
+    let (admin, token_admin, _account_a_addr, account_b_addr, account_c_addr, account_d_addr) =
+        setup_smart_account(&e);
     let new_dest = Address::generate(&e);
 
     let (token_client, token_admin_client) = create_token_contract(&e, &token_admin);
@@ -213,7 +244,12 @@ fn test_update_destinations() {
     let account_a = e.register(RemittanceAccount, ());
     let client_a = RemittanceAccountClient::new(&e, &account_a);
 
-    let destinations = vec![&e, account_b_addr.clone(), account_c_addr.clone(), account_d_addr.clone()];
+    let destinations = vec![
+        &e,
+        account_b_addr.clone(),
+        account_c_addr.clone(),
+        account_d_addr.clone(),
+    ];
     client_a.init(
         &admin,
         &token_address,
@@ -317,7 +353,8 @@ fn test_get_context_rules() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (admin, token_admin, _account_a_addr, account_b_addr, account_c_addr, account_d_addr) = setup_smart_account(&e);
+    let (admin, token_admin, _account_a_addr, account_b_addr, account_c_addr, account_d_addr) =
+        setup_smart_account(&e);
 
     let (token_client, _) = create_token_contract(&e, &token_admin);
     let token_address = token_client.address.clone();
@@ -326,7 +363,12 @@ fn test_get_context_rules() {
     let account_a = e.register(RemittanceAccount, ());
     let client_a = RemittanceAccountClient::new(&e, &account_a);
 
-    let destinations = vec![&e, account_b_addr.clone(), account_c_addr.clone(), account_d_addr.clone()];
+    let destinations = vec![
+        &e,
+        account_b_addr.clone(),
+        account_c_addr.clone(),
+        account_d_addr.clone(),
+    ];
     client_a.init(
         &admin,
         &token_address,
@@ -348,7 +390,8 @@ fn test_zero_amount_transfer() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (admin, token_admin, _, account_b_addr, account_c_addr, account_d_addr) = setup_smart_account(&e);
+    let (admin, token_admin, _, account_b_addr, account_c_addr, account_d_addr) =
+        setup_smart_account(&e);
 
     let (token_client, token_admin_client) = create_token_contract(&e, &token_admin);
     let token_address = token_client.address.clone();
@@ -357,7 +400,12 @@ fn test_zero_amount_transfer() {
     let account_a = e.register(RemittanceAccount, ());
     let client_a = RemittanceAccountClient::new(&e, &account_a);
 
-    let destinations = vec![&e, account_b_addr.clone(), account_c_addr.clone(), account_d_addr.clone()];
+    let destinations = vec![
+        &e,
+        account_b_addr.clone(),
+        account_c_addr.clone(),
+        account_d_addr.clone(),
+    ];
     client_a.init(
         &admin,
         &token_address,
@@ -382,7 +430,8 @@ fn test_transfer_more_than_balance_fails() {
     let e = Env::default();
     e.mock_all_auths();
 
-    let (admin, token_admin, _, account_b_addr, account_c_addr, account_d_addr) = setup_smart_account(&e);
+    let (admin, token_admin, _, account_b_addr, account_c_addr, account_d_addr) =
+        setup_smart_account(&e);
 
     let (token_client, token_admin_client) = create_token_contract(&e, &token_admin);
     let token_address = token_client.address.clone();
@@ -391,7 +440,12 @@ fn test_transfer_more_than_balance_fails() {
     let account_a = e.register(RemittanceAccount, ());
     let client_a = RemittanceAccountClient::new(&e, &account_a);
 
-    let destinations = vec![&e, account_b_addr.clone(), account_c_addr.clone(), account_d_addr.clone()];
+    let destinations = vec![
+        &e,
+        account_b_addr.clone(),
+        account_c_addr.clone(),
+        account_d_addr.clone(),
+    ];
     client_a.init(
         &admin,
         &token_address,
@@ -408,4 +462,98 @@ fn test_transfer_more_than_balance_fails() {
 
     // Verify balance unchanged
     assert_eq!(token_client.balance(&account_a), 100);
+}
+
+#[test]
+fn test_execute_forex_transfer_primary_to_counter() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let (admin, token_admin, _, account_b_addr, _, _) = setup_smart_account(&e);
+
+    let (usdc_client, usdc_admin_client) = create_token_contract(&e, &token_admin);
+    let (eurc_client, eurc_admin_client) = create_token_contract(&e, &token_admin);
+
+    let account_a = e.register(RemittanceAccount, ());
+    let router = e.register(MockRouter, ());
+    let client_a = RemittanceAccountClient::new(&e, &account_a);
+
+    let destinations = vec![&e, account_b_addr.clone()];
+    client_a.init(
+        &admin,
+        &usdc_client.address,
+        &destinations,
+        &String::from_str(&e, "A"),
+    );
+    client_a.configure_forex(&router, &eurc_client.address);
+
+    usdc_admin_client.mint(&account_a, &1_000);
+    eurc_admin_client.mint(&account_a, &1_000);
+
+    let deadline: u64 = 600;
+    let result = client_a.try_execute_forex_transfer(&account_b_addr, &200, &200, &deadline, &true);
+    assert!(result.is_ok());
+
+    assert_eq!(eurc_client.balance(&account_b_addr), 200);
+    assert_eq!(eurc_client.balance(&account_a), 800);
+}
+
+#[test]
+fn test_execute_forex_transfer_counter_to_primary() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let (admin, token_admin, account_a_addr, _account_b_addr, _, _) = setup_smart_account(&e);
+
+    let (usdc_client, usdc_admin_client) = create_token_contract(&e, &token_admin);
+    let (eurc_client, eurc_admin_client) = create_token_contract(&e, &token_admin);
+
+    let account_b = e.register(RemittanceAccount, ());
+    let router = e.register(MockRouter, ());
+    let client_b = RemittanceAccountClient::new(&e, &account_b);
+
+    let destinations = vec![&e, account_a_addr.clone()];
+    client_b.init(
+        &admin,
+        &usdc_client.address,
+        &destinations,
+        &String::from_str(&e, "B"),
+    );
+    client_b.configure_forex(&router, &eurc_client.address);
+
+    // Provide balances for both assets
+    eurc_admin_client.mint(&account_b, &1_000);
+    usdc_admin_client.mint(&account_b, &1_000);
+
+    let deadline: u64 = 600;
+    let result =
+        client_b.try_execute_forex_transfer(&account_a_addr, &300, &300, &deadline, &false);
+    assert!(result.is_ok());
+
+    assert_eq!(usdc_client.balance(&account_a_addr), 300);
+    assert_eq!(usdc_client.balance(&account_b), 700);
+}
+
+#[contract]
+struct MockRouter;
+
+#[contractimpl]
+impl MockRouter {
+    pub fn swap_exact_tokens_for_tokens(
+        env: Env,
+        amount_in: i128,
+        amount_out_min: i128,
+        path: Vec<Address>,
+        _to: Address,
+        _deadline: u64,
+    ) -> Vec<i128> {
+        if path.len() < 2 || amount_in < amount_out_min {
+            panic!("invalid swap");
+        }
+
+        let mut amounts = Vec::new(&env);
+        amounts.push_back(amount_in);
+        amounts.push_back(amount_in);
+        amounts
+    }
 }

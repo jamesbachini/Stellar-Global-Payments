@@ -11,6 +11,7 @@ import {
   validateAccountLabel,
   validateAmount,
   validateDifferentAccounts,
+  validateTransferDestination,
 } from "../utils/validation.js";
 
 export async function handleBalances(
@@ -26,7 +27,7 @@ export async function handleTransfer(
   res: Response<ApiSuccessResponse<TransactionResult>>
 ) {
   const from = validateAccountLabel(req.body.from, "from");
-  const to = validateAccountLabel(req.body.to, "to");
+  const to = validateTransferDestination(req.body.to, "to");
   const amount = validateAmount(req.body.amount);
 
   validateDifferentAccounts(from, to);

@@ -17,14 +17,23 @@ ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
 RPC_URL="https://rpc.lightsail.network/"
 NETWORK="mainnet"
 WASM_PATH="./contracts/target/wasm32v1-none/release/project.wasm"
+MULTISIG_DIR="./contracts/multisig"
+MULTISIG_WASM_PATH="$MULTISIG_DIR/target/wasm32v1-none/release/multisig_treasury.wasm"
 USDC_CONTRACT_ID="CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75"
+EURC_CONTRACT_ID="CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV"
+SOROSWAP_CONTRACT_ID="CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH"
 NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+FOREX_USDC_ACCOUNT_LABEL="${FOREX_USDC_ACCOUNT_LABEL:-A}"
+FOREX_EURC_ACCOUNT_LABEL="${FOREX_EURC_ACCOUNT_LABEL:-B}"
+MULTISIG_THRESHOLD="${MULTISIG_THRESHOLD:-3}"
+MULTISIG_LABEL="${MULTISIG_LABEL:-Global Treasury}"
 
 CONTRACT_DIR="./contracts"
 CONFIG_DIR="./shared/config"
 OUTPUT_CONFIG="$CONFIG_DIR/accounts.local.json"
 LABELS=(A B C D)
 declare -A CONTRACT_IDS
+MULTISIG_CONTRACT_ID=""
 
 check_cli() {
   if ! command -v stellar &> /dev/null; then
@@ -70,9 +79,20 @@ if [[ ! -f "$WASM_PATH" ]]; then
   exit 1
 fi
 
+pushd "$MULTISIG_DIR" >/dev/null
+  echo -e "${YELLOW}Step 3: Building multisig contract${NC}"
+  cargo clean
+  stellar contract build
+popd >/dev/null
+
+if [[ ! -f "$MULTISIG_WASM_PATH" ]]; then
+  echo -e "${RED}Compiled multisig WASM not found at $MULTISIG_WASM_PATH${NC}"
+  exit 1
+fi
+
 echo -e "${GREEN}✓ Build ready (${WASM_PATH})${NC}"
 
-echo -e "${YELLOW}Step 3: Deploying contract instances${NC}"
+echo -e "${YELLOW}Step 4: Deploying contract instances${NC}"
 for label in "${LABELS[@]}"; do
   echo "Deploying smart account $label..."
   deploy_output=$(stellar contract deploy \
@@ -94,7 +114,7 @@ for label in "${LABELS[@]}"; do
   echo -e "  ${GREEN}Contract ID:${NC} $contract_id"
 done
 
-echo -e "${YELLOW}Step 4: Initializing accounts${NC}"
+echo -e "${YELLOW}Step 5: Initializing accounts${NC}"
 for label in "${LABELS[@]}"; do
   contract_id="${CONTRACT_IDS[$label]}"
   echo "Initializing $label ($contract_id)..."
@@ -128,13 +148,118 @@ for label in "${LABELS[@]}"; do
   "${invoke_cmd[@]}"
 done
 
-echo -e "${YELLOW}Step 5: Writing config to $OUTPUT_CONFIG${NC}"
+echo -e "${YELLOW}Step 6: Deploying multisig treasury${NC}"
+echo "Deploying multisig wallet..."
+multisig_output=$(stellar contract deploy \
+  --wasm "$MULTISIG_WASM_PATH" \
+  --source-account "$SOURCE_ACCOUNT" \
+  --network "$NETWORK" \
+  --network-passphrase "$NETWORK_PASSPHRASE"
+)
+MULTISIG_CONTRACT_ID=$(echo "$multisig_output" | awk '/Contract Id/ {print $NF}' | tail -n1)
+if [[ -z "$MULTISIG_CONTRACT_ID" ]]; then
+  MULTISIG_CONTRACT_ID=$(echo "$multisig_output" | grep -Eo 'C[A-Z0-9]{55}' | tail -n1 || true)
+fi
+if [[ -z "$MULTISIG_CONTRACT_ID" ]]; then
+  echo -e "${RED}Failed to deploy multisig contract${NC}"
+  echo "$multisig_output"
+  exit 1
+fi
+echo -e "  ${GREEN}Multisig Contract ID:${NC} $MULTISIG_CONTRACT_ID"
+
+signers_json="["
+for idx in "${!LABELS[@]}"; do
+  label=${LABELS[$idx]}
+  if [[ $idx -gt 0 ]]; then
+    signers_json+=","
+  fi
+  signers_json+="\"${CONTRACT_IDS[$label]}\""
+done
+signers_json+="]"
+
+echo "Initializing multisig wallet..."
+stellar contract invoke \
+  --id "$MULTISIG_CONTRACT_ID" \
+  --source-account "$SOURCE_ACCOUNT" \
+  --sign-with-key "$ADMIN_SIGNER" \
+  --network "$NETWORK" \
+  --network-passphrase "$NETWORK_PASSPHRASE" \
+  -- init \
+  --admin "$ADMIN_PUBLIC_KEY" \
+  --token "$USDC_CONTRACT_ID" \
+  --signers "$signers_json" \
+  --threshold "$MULTISIG_THRESHOLD" \
+  --label "$MULTISIG_LABEL"
+
+echo -e "${YELLOW}Step 7: Updating destinations with multisig${NC}"
+for label in "${LABELS[@]}"; do
+  contract_id="${CONTRACT_IDS[$label]}"
+  destinations=()
+  for other in "${LABELS[@]}"; do
+    if [[ "$other" != "$label" ]]; then
+      destinations+=("${CONTRACT_IDS[$other]}")
+    fi
+  done
+  destinations+=("$MULTISIG_CONTRACT_ID")
+  destinations_json="["
+  for idx in "${!destinations[@]}"; do
+    if [[ $idx -gt 0 ]]; then
+      destinations_json+=","
+    fi
+    destinations_json+="\"${destinations[$idx]}\""
+  done
+  destinations_json+="]"
+  echo "Updating destinations for $label..."
+  stellar contract invoke \
+    --id "$contract_id" \
+    --source-account "$SOURCE_ACCOUNT" \
+    --sign-with-key "$ADMIN_SIGNER" \
+    --network "$NETWORK" \
+    --network-passphrase "$NETWORK_PASSPHRASE" \
+    -- update_destinations \
+    --destinations "$destinations_json"
+done
+
+echo -e "${YELLOW}Step 8: Configuring forex routing${NC}"
+
+if [[ "$FOREX_USDC_ACCOUNT_LABEL" == "$FOREX_EURC_ACCOUNT_LABEL" ]]; then
+  echo -e "${RED}FOREX_USDC_ACCOUNT_LABEL and FOREX_EURC_ACCOUNT_LABEL must be different${NC}"
+  exit 1
+fi
+
+configure_forex_account() {
+  local label="$1"
+  local counter_token="$2"
+  local contract_id="${CONTRACT_IDS[$label]:-}"
+  if [[ -z "$contract_id" ]]; then
+    echo -e "${RED}Cannot configure forex for $label – contract not deployed${NC}"
+    exit 1
+  fi
+
+  echo "Configuring forex for account $label ($contract_id)..."
+  stellar contract invoke \
+    --id "$contract_id" \
+    --source-account "$SOURCE_ACCOUNT" \
+    --sign-with-key "$ADMIN_SIGNER" \
+    --network "$NETWORK" \
+    --network-passphrase "$NETWORK_PASSPHRASE" \
+    -- configure_forex \
+    --router "$SOROSWAP_CONTRACT_ID" \
+    --counter_token "$counter_token"
+}
+
+configure_forex_account "$FOREX_USDC_ACCOUNT_LABEL" "$EURC_CONTRACT_ID"
+configure_forex_account "$FOREX_EURC_ACCOUNT_LABEL" "$USDC_CONTRACT_ID"
+
+echo -e "${YELLOW}Step 9: Writing config to $OUTPUT_CONFIG${NC}"
 mkdir -p "$CONFIG_DIR"
 cat > "$OUTPUT_CONFIG" <<EOF
 {
   "network": "${NETWORK^^}",
   "rpcUrl": "$RPC_URL",
   "usdcContractId": "$USDC_CONTRACT_ID",
+  "eurcContractId": "$EURC_CONTRACT_ID",
+  "soroswapContractId": "$SOROSWAP_CONTRACT_ID",
   "adminPublicKey": "$ADMIN_PUBLIC_KEY",
   "accounts": {
 EOF
@@ -147,6 +272,11 @@ for i in "${!LABELS[@]}"; do
   printf '    "%s": "%s"%s\n' "$label" "${CONTRACT_IDS[$label]}" "$comma" >> "$OUTPUT_CONFIG"
 done
 cat <<EOF >> "$OUTPUT_CONFIG"
+  },
+  "multisig": {
+    "contractId": "$MULTISIG_CONTRACT_ID",
+    "label": "$MULTISIG_LABEL",
+    "threshold": $MULTISIG_THRESHOLD
   }
 }
 EOF

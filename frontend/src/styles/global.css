@@ -62,6 +62,89 @@ html, body {
   padding: 1rem;
 }
 
+.tab-container {
+  position: absolute;
+  top: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  background: rgba(5, 11, 24, 0.6);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+  z-index: 3;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
+}
+
+.tab {
+  border: none;
+  border-radius: 999px;
+  padding: 0.5rem 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: transparent;
+  color: #f8fbff;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.tab.active {
+  background: linear-gradient(120deg, #8ecae6, #c77dff);
+  color: #050b18;
+}
+
+.error-banner {
+  position: absolute;
+  top: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(209, 71, 71, 0.95);
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  z-index: 3;
+  max-width: 90%;
+  text-align: center;
+}
+
+.loading {
+  position: absolute;
+  top: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(5, 11, 24, 0.65);
+  color: #f8fbff;
+  padding: 0.7rem 1.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  z-index: 3;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
+}
+
+.placeholder-panel {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: 10%;
+  top: auto;
+  background: rgba(5, 11, 24, 0.75);
+  border-radius: 24px;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.5rem;
+  color: #f8fbff;
+  z-index: 2;
+}
+
 .account-marker {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -99,6 +182,17 @@ html, body {
 .account-marker strong {
   font-size: clamp(0.9rem, 2vw, 1.1rem);
   margin-bottom: 0.1rem;
+}
+
+.account-marker.multisig {
+  min-width: clamp(180px, 20vw, 220px);
+  text-align: center;
+  padding: clamp(0.75rem, 2.5vw, 1.25rem);
+  border-width: 2px;
+}
+
+.account-marker.multisig strong {
+  font-size: clamp(1rem, 2.4vw, 1.3rem);
 }
 
 .account-balance {
@@ -139,6 +233,12 @@ html, body {
 .send-action:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.8);
   outline-offset: 2px;
+}
+
+.account-marker.multisig .send-action {
+  background: linear-gradient(120deg, #14b8a6, #63e6be);
+  color: #041627;
+  font-weight: 800;
 }
 
 .modal {
@@ -193,12 +293,224 @@ html, body {
   opacity: 1;
 }
 
+.multisig-modal .modal-content {
+  width: min(920px, 95vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.multisig-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.multisig-overview div {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 16px;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.multisig-overview p {
+  margin: 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.multisig-overview h2 {
+  margin: 0.35rem 0 0;
+  font-size: 1.4rem;
+}
+
+.signer-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.signer-tags span {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(142, 202, 230, 0.15);
+  border: 1px solid rgba(142, 202, 230, 0.35);
+  font-size: 0.8rem;
+}
+
+.multisig-form {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 1.25rem;
+}
+
+.multisig-form h4,
+.multisig-requests h4 {
+  margin: 0 0 0.75rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.multisig-requests {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  padding: 1.25rem;
+}
+
+.request-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: rgba(7, 15, 31, 0.6);
+}
+
+.request-card.executed {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.35);
+}
+
+.request-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.request-header h4 {
+  margin: 0;
+}
+
+.status-chip {
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(248, 251, 255, 0.2);
+  font-size: 0.85rem;
+  align-self: flex-start;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-chip.status-complete {
+  border-color: rgba(20, 184, 166, 0.7);
+  color: #63e6be;
+}
+
+.request-body {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.request-amount strong {
+  font-size: 1.3rem;
+}
+
+.signature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.5rem;
+}
+
+.signature-pill {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #f8fbff;
+  padding: 0.35rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.signature-pill svg {
+  width: 20px;
+  height: 20px;
+  stroke: #63e6be;
+  fill: none;
+  stroke-width: 2;
+}
+
+.signature-pill.signed {
+  border-color: rgba(20, 184, 166, 0.6);
+  background: rgba(20, 184, 166, 0.15);
+}
+
+.signature-pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.signature-action {
+  font-weight: 600;
+  color: #8ecae6;
+}
+
+.info-text {
+  margin: 0.5rem 0 0;
+  color: #8ecae6;
+  font-size: 0.9rem;
+}
+
+.error-text {
+  margin: 0.5rem 0 0;
+  color: #ff9b9b;
+  font-size: 0.9rem;
+}
+
+.empty-state {
+  margin: 0;
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
 label {
   display: flex;
   flex-direction: column;
   gap: clamp(0.25rem, 1vw, 0.4rem);
   margin-bottom: clamp(0.75rem, 2vw, 1rem);
   font-size: clamp(0.8rem, 1.8vw, 0.9rem);
+}
+
+.quote-panel {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  background: rgba(142, 202, 230, 0.1);
+  border: 1px solid rgba(142, 202, 230, 0.4);
+}
+
+.quote-panel h4 {
+  margin: 0 0 0.4rem 0;
+}
+
+.quote-panel p {
+  margin: 0.2rem 0;
+}
+
+.quote-expiry {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.quote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
 }
 
 label span {
@@ -287,6 +599,22 @@ button.primary:disabled,
   cursor: not-allowed;
 }
 
+button.ghost {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 0.6rem 1.25rem;
+  background: transparent;
+  color: #f8fbff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+button.ghost:hover {
+  border-color: #f8fbff;
+  color: white;
+}
+
 .error {
   color: #ff7b72;
   font-size: clamp(0.8rem, 1.8vw, 0.9rem);
@@ -295,6 +623,12 @@ button.primary:disabled,
 
 .success {
   color: #8ecae6;
+  font-size: clamp(0.8rem, 1.8vw, 0.9rem);
+  margin: clamp(0.5rem, 1.5vw, 0.75rem) 0;
+}
+
+.info {
+  color: rgba(255, 255, 255, 0.7);
   font-size: clamp(0.8rem, 1.8vw, 0.9rem);
   margin: clamp(0.5rem, 1.5vw, 0.75rem) 0;
 }

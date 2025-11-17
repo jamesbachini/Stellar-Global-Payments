@@ -1,5 +1,12 @@
 # Changelog
 
+## 2025-11-14 - Multisig Treasury Experience 🚀
+
+- Added a dedicated multisig Soroban contract (`contracts/multisig/`) with withdrawal proposals, 3-of-4 signer enforcement, and request exports for the UI.
+- Deployment scripts now build, deploy, and configure the multisig wallet plus append the contract ID to `shared/config/accounts.*.json`.
+- Backend gains `/api/multisig/*` endpoints and Soroban helpers to fetch state, create proposals, and capture approvals; configuration now requires the multisig contract ID.
+- Frontend Multisig tab mirrors the payments map, adds a treasury marker, extends transfers with a “send to multisig” option, and introduces an immersive modal for managing signatures and releases.
+
 ## 2025-11-13 - Configuration Simplification & Responsive Frontend
 
 ### Configuration Simplification ✨

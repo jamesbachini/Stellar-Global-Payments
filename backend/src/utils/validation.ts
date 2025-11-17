@@ -1,6 +1,6 @@
-import { AccountLabel } from "../types.js";
+import { AccountLabel, ForexQuoteDirection, TransferDestination } from "../types.js";
 import { ValidationError } from "../errors.js";
-import { ACCOUNT_LABELS } from "../constants.js";
+import { ACCOUNT_LABELS, FOREX_DIRECTIONS, TRANSFER_DESTINATIONS } from "../constants.js";
 
 export function isAccountLabel(value: unknown): value is AccountLabel {
   return typeof value === "string" && ACCOUNT_LABELS.includes(value as AccountLabel);
@@ -49,10 +49,31 @@ export function validateAmount(amount: unknown): string {
   return amount;
 }
 
-export function validateDifferentAccounts(from: AccountLabel, to: AccountLabel): void {
+export function validateDifferentAccounts(
+  from: AccountLabel,
+  to: AccountLabel | TransferDestination
+): void {
   if (from === to) {
     throw new ValidationError("Source and destination accounts must be different");
   }
+}
+
+export function validateTransferDestination(value: unknown, fieldName: string): TransferDestination {
+  if (typeof value === "string" && TRANSFER_DESTINATIONS.includes(value as TransferDestination)) {
+    return value as TransferDestination;
+  }
+  throw new ValidationError(
+    `${fieldName} must be one of: ${TRANSFER_DESTINATIONS.join(", ")}. Received: ${value}`
+  );
+}
+
+export function validateForexDirection(value: unknown): ForexQuoteDirection {
+  if (typeof value === "string" && FOREX_DIRECTIONS.includes(value as ForexQuoteDirection)) {
+    return value as ForexQuoteDirection;
+  }
+  throw new ValidationError(
+    `direction must be one of: ${FOREX_DIRECTIONS.join(", ")}. Received: ${value}`
+  );
 }
 
 export function validateAuthToken(provided: string, expected: string): void {

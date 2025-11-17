@@ -2,11 +2,18 @@
   "network": "TESTNET",
   "rpcUrl": "https://soroban-testnet.stellar.org",
   "usdcContractId": "CB...USDC",
+  "eurcContractId": "CD...EURC",
+  "soroswapContractId": "CA...SWAP",
   "adminPublicKey": "GADMIN...",
   "accounts": {
     "A": "CA...A",
     "B": "CB...B",
     "C": "CC...C",
     "D": "CD...D"
+  },
+  "multisig": {
+    "contractId": "CMULTISIG...",
+    "label": "Global Treasury",
+    "threshold": 3
   }
 }

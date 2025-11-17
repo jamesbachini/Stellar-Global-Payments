@@ -136,7 +136,41 @@ stellar contract invoke \
 
 Repeat for each of the 4 contracts (A, B, C, D).
 
-### 4. Build Frontend
+### 4. Configure Forex Router (optional feature)
+
+If you plan to use the Forex tab, configure each participating smart-account with the Soroswap router address and the counter token it should mint after a swap. Mainnet values:
+
+- SoroswapRouter: `CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH`
+- USDC: `CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75`
+- EURC: `CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV`
+
+Example – configure the New York account (label `A`) so it swaps USDC → EURC before forwarding funds:
+
+```bash
+stellar contract invoke \
+  --id <ACCOUNT_A_ID> \
+  --source admin \
+  --network mainnet \
+  -- configure_forex \
+  --router CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH \
+  --counter_token CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV
+```
+
+Configure the London account (label `B`) with the same router but the opposite counter token (USDC):
+
+```bash
+stellar contract invoke \
+  --id <ACCOUNT_B_ID> \
+  --source admin \
+  --network mainnet \
+  -- configure_forex \
+  --router CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH \
+  --counter_token CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75
+```
+
+Only accounts with this configuration will participate in swaps; other accounts keep operating as pure USDC remittance wallets.
+
+### 5. Build Frontend
 
 ```bash
 cd frontend
@@ -147,7 +181,7 @@ cd ..
 
 This creates a production build in `frontend/dist/`.
 
-### 5. Configure and Start Backend
+### 6. Configure and Start Backend
 
 ```bash
 cd backend
@@ -171,7 +205,7 @@ Build the backend:
 npm run build
 ```
 
-### 6. Configure Node.js for Port 80 (Optional)
+### 7. Configure Node.js for Port 80 (Optional)
 
 If you want to run the backend on port 80 (default HTTP port), grant Node.js permission:
 
@@ -181,7 +215,7 @@ sudo setcap 'cap_net_bind_service=+ep' $(which node)
 
 Then update `backend/src/index.ts` to use port 80, or set `PORT=80` in your `.env`.
 
-### 7. Start the Backend
+### 8. Start the Backend
 
 ```bash
 npm start
@@ -192,7 +226,7 @@ The backend will:
 - Expose API endpoints at `/api/*`
 - Run on the configured port (default: 4000, or 80 if configured)
 
-### 8. Configure Auto-Restart (Optional)
+### 9. Configure Auto-Restart (Optional)
 
 To automatically start the server on system reboot:
 

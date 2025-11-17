@@ -18,7 +18,7 @@ npm install
 
 ### 3. Configure Secrets
 
-Create a `.env` file with **only 2 required secrets**:
+Create a `.env` file with **3 required secrets**:
 
 ```bash
 # Copy example and edit
@@ -30,6 +30,7 @@ Then edit `.env` and set:
 ```env
 ADMIN_SECRET_KEY=SA...YOUR_SECRET_KEY_HERE
 ADMIN_AUTH_TOKEN=your_random_secure_token_here
+SOROSWAP_API_KEY=sk_live_or_test_key_from_soroswap
 ```
 
 Generate a secure auth token:
@@ -77,13 +78,17 @@ The backend uses a **shared configuration file** to eliminate duplicate settings
 ### Required in `.env` (secrets only):
 - `ADMIN_SECRET_KEY` - Admin account secret key
 - `ADMIN_AUTH_TOKEN` - API authentication token
+- `SOROSWAP_API_KEY` - Soroswap API key for executing forex swaps
 
 ### Optional Overrides (in `.env`):
 - `PORT` - Server port (default: 4000)
 - `SOROBAN_RPC_URL` - Override RPC endpoint
 - `USDC_CONTRACT_ID` - Override USDC contract
+- `EURC_CONTRACT_ID` - Override EURC contract for forex swaps
 - `ADMIN_PUBLIC_KEY` - Override admin public key
 - `EXPLORER_BASE_URL` - Override block explorer URL
+- `SOROSWAP_API_BASE_URL` / `SOROSWAP_PROTOCOLS` - Customize Soroswap API routing
+- `FOREX_USDC_ACCOUNT_LABEL` / `FOREX_EURC_ACCOUNT_LABEL` - Pick which smart accounts fuel the forex demo
 
 This design ensures:
 ✅ Single source of truth for deployment config
@@ -101,6 +106,18 @@ This design ensures:
 **POST /api/transfer**
 - Transfer USDC between accounts A-D
 - Body: `{ from: "A", to: "B", amount: "10.5" }`
+
+**GET /api/forex/balances**
+- Returns the latest balances for the forex demo (New York USDC, London EURC)
+
+**POST /api/forex/quote**
+- Fetches a Soroswap quote for USDC⇄EURC swaps
+- Body: `{ direction: "USDC_TO_EURC", amount: "100" }`
+
+**POST /api/forex/swap**
+- Builds, signs, and submits the Soroswap transaction once a quote is confirmed
+- Body: `{ quote: <raw quote object returned from /api/forex/quote> }`
+- Funds never leave the smart accounts. This endpoint calls each account's `execute_forex_transfer` method, which in turn invokes the Soroswap router from within the contract.
 
 ### Admin Endpoints (require `X-Auth-Token` header)
 

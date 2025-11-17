@@ -4,6 +4,9 @@ import { NetworkType } from "./types.js";
 export const USDC_DECIMALS = 7;
 
 export const ACCOUNT_LABELS = ["A", "B", "C", "D"] as const;
+export const TRANSFER_DESTINATIONS = [...ACCOUNT_LABELS, "MULTISIG"] as const;
+
+export const FOREX_DIRECTIONS = ["USDC_TO_EURC", "EURC_TO_USDC"] as const;
 
 export const TRANSACTION_CONFIG = {
   FEE: "60000",

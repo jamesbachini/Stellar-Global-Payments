@@ -2,7 +2,7 @@ import { config as loadEnv } from "dotenv";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { NetworkType } from "./types.js";
+import { NetworkType, AccountLabel } from "./types.js";
 
 loadEnv();
 
@@ -15,12 +15,37 @@ type AccountMapping = {
   D: string;
 };
 
+type MultisigSharedConfig = {
+  contractId: string;
+  label?: string;
+  threshold?: number;
+};
+
+const DEFAULT_EURC_CONTRACT_ID = "CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV";
+
 type SharedConfig = {
   network: string;
   rpcUrl: string;
   usdcContractId: string;
+  eurcContractId?: string;
+  soroswapContractId?: string;
   adminPublicKey: string;
   accounts: AccountMapping;
+  multisig?: MultisigSharedConfig;
+};
+
+type SoroswapConfig = {
+  apiKey: string;
+  baseUrl: string;
+  network: "mainnet" | "testnet";
+  protocols: string[];
+};
+
+type ForexConfig = {
+  eurcContractId: string;
+  usdcAccountLabel: AccountLabel;
+  eurcAccountLabel: AccountLabel;
+  soroswap: SoroswapConfig;
 };
 
 class ConfigurationError extends Error {
@@ -73,6 +98,23 @@ function loadSharedConfig(): SharedConfig {
   }
 }
 
+function getForexAccountLabel(
+  key: string,
+  accounts: AccountMapping,
+  fallback: AccountLabel
+): AccountLabel {
+  const raw = process.env[key]?.trim();
+  if (!raw) {
+    return fallback;
+  }
+  if (["A", "B", "C", "D"].includes(raw) && accounts[raw as AccountLabel]) {
+    return raw as AccountLabel;
+  }
+  throw new ConfigurationError(
+    `Invalid ${key} value "${raw}". Expected one of A, B, C, or D with a configured smart account.`
+  );
+}
+
 type AppConfig = {
   port: number;
   network: NetworkType;
@@ -83,6 +125,13 @@ type AppConfig = {
   usdcContractId: string;
   explorerBaseUrl: string;
   accounts: AccountMapping;
+  forex: ForexConfig;
+  multisig: {
+    contractId: string;
+    label: string;
+    threshold: number;
+    signers: AccountLabel[];
+  };
 };
 
 function loadConfig(): AppConfig {
@@ -98,7 +147,41 @@ function loadConfig(): AppConfig {
     // Allow optional overrides from environment
     const rpcUrl = getEnv("SOROBAN_RPC_URL", sharedConfig.rpcUrl);
     const usdcContractId = getEnv("USDC_CONTRACT_ID", sharedConfig.usdcContractId);
+    const eurcContractId = getEnv(
+      "EURC_CONTRACT_ID",
+      sharedConfig.eurcContractId || DEFAULT_EURC_CONTRACT_ID
+    );
     const adminPublicKey = getEnv("ADMIN_PUBLIC_KEY", sharedConfig.adminPublicKey);
+    const soroswapApiKey = requireEnv("SOROSWAP_API_KEY");
+    const soroswapBaseUrl = getEnv("SOROSWAP_API_BASE_URL", "https://api.soroswap.finance");
+    const soroswapProtocolsRaw = getEnv("SOROSWAP_PROTOCOLS", "soroswap,phoenix,aqua")
+      .split(",")
+      .map((protocol) => protocol.trim())
+      .filter(Boolean);
+    const soroswapProtocols =
+      soroswapProtocolsRaw.length > 0 ? soroswapProtocolsRaw : ["soroswap", "phoenix", "aqua"];
+
+    const soroswapNetwork = network === "MAINNET" ? "mainnet" : "testnet";
+
+    const usdcAccountLabel = getForexAccountLabel(
+      "FOREX_USDC_ACCOUNT_LABEL",
+      sharedConfig.accounts,
+      "A"
+    );
+    const eurcAccountLabel = getForexAccountLabel(
+      "FOREX_EURC_ACCOUNT_LABEL",
+      sharedConfig.accounts,
+      "B"
+    );
+
+    if (!sharedConfig.multisig?.contractId) {
+      throw new ConfigurationError(
+        "Shared config is missing multisig contract information. Please re-run deploy.sh."
+      );
+    }
+
+    const multisigLabel = sharedConfig.multisig.label?.trim() || "Global Treasury";
+    const multisigThreshold = sharedConfig.multisig.threshold ?? 3;
 
     return {
       port: Number(getEnv("PORT", "80")),
@@ -115,6 +198,23 @@ function loadConfig(): AppConfig {
           : "https://stellar.expert/explorer/public/tx/"
       ),
       accounts: sharedConfig.accounts,
+      forex: {
+        eurcContractId,
+        usdcAccountLabel,
+        eurcAccountLabel,
+        soroswap: {
+          apiKey: soroswapApiKey,
+          baseUrl: soroswapBaseUrl,
+          network: soroswapNetwork,
+          protocols: soroswapProtocols.length ? soroswapProtocols : ["soroswap", "phoenix", "aqua"],
+        },
+      },
+      multisig: {
+        contractId: sharedConfig.multisig.contractId,
+        label: multisigLabel,
+        threshold: multisigThreshold,
+        signers: ["A", "B", "C", "D"] as AccountLabel[],
+      },
     };
   } catch (error) {
     if (error instanceof ConfigurationError) {

@@ -1,38 +1,51 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import type { AccountLabel, TransferResponse } from "../types";
+import type { AccountLabel, TransferResponse, TransferTarget } from "../types";
 
 type Props = {
   from: AccountLabel | null;
+  mode?: "payments" | "multisig";
   onClose: () => void;
   refresh: () => Promise<void> | void;
 };
 
-const labels: AccountLabel[] = ["A", "B", "C", "D"];
+const accountLabels: AccountLabel[] = ["A", "B", "C", "D"];
 
-const cityNames: Record<AccountLabel, string> = {
+const destinationNames: Record<TransferTarget, string> = {
   A: "New York",
   B: "London",
   C: "Buenos Aires",
   D: "Singapore",
+  MULTISIG: "Treasury Multisig",
 };
 
-export function TransferModal({ from, onClose, refresh }: Props) {
-  const [to, setTo] = useState<AccountLabel>("B");
+export function TransferModal({ from, onClose, refresh, mode = "payments" }: Props) {
+  const [to, setTo] = useState<TransferTarget>("B");
   const [amount, setAmount] = useState<string>("0.01");
   const [status, setStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
   const [message, setMessage] = useState<string>("");
   const [explorerUrl, setExplorerUrl] = useState<string>("");
 
-  const destinations = useMemo(
-    () => labels.filter((label) => label !== from),
-    [from]
-  );
+  const destinations = useMemo<TransferTarget[]>(() => {
+    const base = accountLabels.filter((label) => label !== from);
+    if (mode === "multisig") {
+      return [...base, "MULTISIG"];
+    }
+    return base;
+  }, [from, mode]);
 
   useEffect(() => {
     if (!from) return;
     const defaultDest = destinations[0] ?? "A";
-    setTo((current) => (current === from ? defaultDest : current));
+    setTo((current) => {
+      if (current === from) {
+        return defaultDest;
+      }
+      if (!destinations.includes(current)) {
+        return defaultDest;
+      }
+      return current;
+    });
   }, [from, destinations]);
 
   useEffect(() => {
@@ -53,8 +66,12 @@ export function TransferModal({ from, onClose, refresh }: Props) {
       setMessage("");
 
       const startTime = Date.now();
-      const { data } = await axios.post<any>("/api/transfer", { from, to, amount });
-      if (!data.success) throw new Error(data.error || "Transfer failed");
+      const { data } = await axios.post<TransferResponse>("/api/transfer", { from, to, amount });
+      if (!data.success) {
+        const errorMessage =
+          typeof data.error === "string" ? data.error : data.error?.message || "Transfer failed";
+        throw new Error(errorMessage);
+      }
 
       await refresh();
 
@@ -82,7 +99,7 @@ export function TransferModal({ from, onClose, refresh }: Props) {
           <div className="transfer-animation">
             <div className="location-marker start-marker">
               <div className="marker-pin"></div>
-              <span className="marker-label">{cityNames[from]}</span>
+              <span className="marker-label">{destinationNames[from]}</span>
             </div>
             <div className="transfer-path">
               <div className="path-line"></div>
@@ -95,7 +112,7 @@ export function TransferModal({ from, onClose, refresh }: Props) {
             </div>
             <div className="location-marker end-marker">
               <div className="marker-pin"></div>
-              <span className="marker-label">{cityNames[to]}</span>
+              <span className="marker-label">{destinationNames[to]}</span>
             </div>
           </div>
           <div className="loading-content">
@@ -126,7 +143,7 @@ export function TransferModal({ from, onClose, refresh }: Props) {
             </svg>
             <h2>Transfer Complete!</h2>
             <p className="success-details">
-              ${amount} USDC sent from {cityNames[from]} to {cityNames[to]}
+              ${amount} USDC sent from {destinationNames[from]} to {destinationNames[to]}
             </p>
             <a className="explorer-button" href={explorerUrl} target="_blank" rel="noreferrer">
               View Transaction on Stellar.Expert
@@ -147,15 +164,15 @@ export function TransferModal({ from, onClose, refresh }: Props) {
     <div className="modal">
       <div className="modal-content">
         <header>
-          <h3>Send USDC from {cityNames[from]}</h3>
+          <h3>Send USDC from {destinationNames[from]}</h3>
           <button onClick={onClose}>×</button>
         </header>
         <label>
           <span>To</span>
-          <select value={to} onChange={(event) => setTo(event.target.value as AccountLabel)}>
+          <select value={to} onChange={(event) => setTo(event.target.value as TransferTarget)}>
             {destinations.map((label) => (
               <option key={label} value={label}>
-                {cityNames[label]}
+                {destinationNames[label]}
               </option>
             ))}
           </select>

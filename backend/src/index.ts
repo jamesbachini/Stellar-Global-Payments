@@ -4,6 +4,16 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { appConfig } from "./config.js";
 import { handleAdminWithdraw, handleBalances, handleTransfer } from "./controllers/payments.js";
+import {
+  handleForexBalances,
+  handleForexQuote,
+  handleForexSwap,
+} from "./controllers/forex.js";
+import {
+  handleMultisigApprove,
+  handleMultisigState,
+  handleMultisigWithdraw,
+} from "./controllers/multisig.js";
 import { errorHandler, asyncHandler } from "./middleware/errorHandler.js";
 import { requireAdminAuth } from "./middleware/auth.js";
 
@@ -27,6 +37,14 @@ app.get("/api/balances", asyncHandler(handleBalances));
 app.post("/api/transfer", asyncHandler(handleTransfer));
 
 app.post("/api/admin/withdraw", requireAdminAuth, asyncHandler(handleAdminWithdraw));
+
+app.get("/api/forex/balances", asyncHandler(handleForexBalances));
+app.post("/api/forex/quote", asyncHandler(handleForexQuote));
+app.post("/api/forex/swap", asyncHandler(handleForexSwap));
+
+app.get("/api/multisig/state", asyncHandler(handleMultisigState));
+app.post("/api/multisig/withdraw", asyncHandler(handleMultisigWithdraw));
+app.post("/api/multisig/approve", asyncHandler(handleMultisigApprove));
 
 // Serve static frontend files
 const frontendDistPath = join(__dirname, "../../frontend/dist");

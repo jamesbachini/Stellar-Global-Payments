@@ -14,7 +14,7 @@ export function useAccounts() {
   const fetchBalances = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await axios.get<{ success: boolean; data: { balances: Balances } }>("/api/balances");
+      const { data } = await axios.get<BalancesResponse>("/api/balances");
       if (!data.success) {
         throw new Error("Unable to fetch balances");
       }
