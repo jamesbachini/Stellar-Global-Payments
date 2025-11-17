@@ -2,10 +2,10 @@
 
 This monorepo contains:
 
-- **contracts/** – Soroban smart-account contract built on top of OpenZeppelin's Stellar accounts package. Includes a deployment helper to spin up four labelled accounts (A/B/C/D).
-- **backend/** – TypeScript Express server that acts as the hot-wallet / relayer. It exposes transfer + admin withdrawal APIs and a helper endpoint to surface balances.
-- **frontend/** – Vite + React experience with a stylized map visualization, transfer modal, and admin panel.
-- **shared/** – Common configuration artifacts (e.g., generated smart-account IDs).
+- **contracts/** – Soroban smart-account contracts built on top of OpenZeppelin's Stellar accounts framework. `project` powers the four corridor wallets (A/B/C/D) and `multisig_treasury` powers the 3-of-4 global treasury.
+- **backend/** – TypeScript Express server that acts as the hot-wallet / relayer. It exposes transfer + admin withdrawal APIs, forex helpers, and multisig orchestration endpoints.
+- **frontend/** – Vite + React experience with a stylized map visualization, transfer modal, forex workflows, and a full multisig orchestration UI.
+- **shared/** – Common configuration artifacts (e.g., generated smart-account IDs plus multisig metadata).
 
 ## Prerequisites
 
@@ -32,24 +32,46 @@ The resulting `remittance_accounts.wasm` is consumed by the deployment script:
 ./deploy_testnet.sh
 ```
 
-The script produces `shared/config/accounts.local.json` with the four smart-account IDs and metadata.
+The scripts:
+- Build both the remittance and multisig contracts
+- Deploy the four labelled smart accounts (A–D)
+- Deploy and initialize the treasury multisig wallet (3-of-4 by default)
+- Update all destination allowlists (including the treasury) and configure forex routing when applicable
+- Emit `shared/config/accounts.local.json` with every contract ID plus admin metadata
+
+> **Customizing deploys:** set `SOURCE_ACCOUNT`, `ADMIN_SIGNER`, `ADMIN_PUBLIC_KEY`, `MULTISIG_THRESHOLD`, `MULTISIG_LABEL`, `FOREX_USDC_ACCOUNT_LABEL`, or `FOREX_EURC_ACCOUNT_LABEL` before running the script if you need different identities, multisig rules, or forex participants.
 
 ## Backend
 
 ```bash
 cd backend
 npm install
-cp .env.example .env # adjust values (admin secret, RPC URL, account IDs, etc.)
+cp .env.example .env
+nano .env
+```
+
+Required secrets:
+
+| Variable | Description |
+| --- | --- |
+| `ADMIN_SECRET_KEY` | Secret key for the relayer/admin Stellar account |
+| `ADMIN_AUTH_TOKEN` | Shared secret for admin-only API routes |
+| `SOROSWAP_API_KEY` | API key for Soroswap quotes/swaps (used by the forex tab) |
+
+Everything else (contract IDs, RPC URL, multisig metadata, etc.) is sourced automatically from `shared/config/accounts.local.json`.
+
+```bash
 npm run dev
 ```
 
 Key endpoints:
 
 - `POST /api/transfer` – body `{ from, to, amount }`
-- `POST /api/admin/withdraw` – body `{ from, amount, adminAuthToken }`
+- `POST /api/admin/withdraw` – body `{ from, amount }` + `Authorization` header
 - `GET /api/balances` – helper used by the UI to show live token balances
+- `GET /api/multisig/state` and `POST /api/multisig/{withdraw|approve}` – power the multisig UI
 
-## Frontend
+## Frontend & Multisig UX
 
 ```bash
 cd frontend
@@ -58,6 +80,13 @@ npm run dev
 ```
 
 The app hits the backend (proxied under `/api`) to trigger transfers or query balances. Route `/admin` activates the admin console for emergency withdrawals.
+
+### Multisig Treasury Tab
+
+- Shows the four corridor wallets plus a "Global Treasury" marker anchored near the bottom of the world map.
+- Transfers initiated from this tab include an extra destination option (`MULTISIG`) so corridor wallets can deposit into the treasury.
+- Selecting the treasury marker opens a modal that lets operators propose withdrawals (initiator + destination + amount) and gather approvals. Once any 3 of 4 wallets have signed, funds automatically release to the chosen corridor wallet.
+- Live status (balances, requests, signatures) is streamed from `/api/multisig/state`, and every backend submission still uses the admin relayer so smart accounts never need to hold XLM.
 
 ## Production Deployment
 
@@ -100,14 +129,15 @@ stellar keys generate admin --network mainnet
 
 # Fund this account with XLM from an exchange or existing wallet
 
-# Deploy all 4 smart account contracts
+# Deploy corridor wallets + multisig + optional forex routing
 ./deploy.sh
 ```
 
 This will:
-- Build the WASM contract
+- Build both WASM contracts
 - Deploy 4 smart account instances (A, B, C, D)
-- Initialize each with allowed destinations
+- Deploy the treasury multisig wallet (defaults to 3-of-4 signatures)
+- Initialize each corridor wallet with allowed destinations (including the treasury)
 - Generate `shared/config/accounts.local.json` with all contract IDs and configuration
 
 ### 3. Fund Smart Account Contracts
@@ -134,7 +164,7 @@ stellar contract invoke \
   --amount 10000000  # 1 USDC (7 decimals)
 ```
 
-Repeat for each of the 4 contracts (A, B, C, D).
+Repeat for each of the 4 contracts (A, B, C, D). The treasury wallet is funded by sending from those remittance accounts via the Multisig tab.
 
 ### 4. Configure Forex Router (optional feature)
 
@@ -196,9 +226,10 @@ Edit `.env` and configure only these **required** secrets:
 ```env
 ADMIN_SECRET_KEY=<your_admin_secret_key>
 ADMIN_AUTH_TOKEN=<generate_with_openssl_rand_hex_32>
+SOROSWAP_API_KEY=<api_key_from_soroswap_portal>
 ```
 
-All other configuration (network, RPC URL, contract IDs) is automatically loaded from `shared/config/accounts.local.json`.
+All other configuration (network, RPC URL, contract IDs, multisig metadata) is automatically loaded from `shared/config/accounts.local.json`.
 
 Build the backend:
 ```bash
