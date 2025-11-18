@@ -74,6 +74,7 @@ pub enum MultisigError {
 #[contract]
 pub struct MultisigTreasury;
 
+#[allow(dead_code)]
 fn read_admin(env: &Env) -> Address {
     env.storage()
         .instance()
@@ -200,7 +201,7 @@ impl MultisigTreasury {
         if signers.is_empty() {
             panic_with_error!(env, MultisigError::InvalidThreshold);
         }
-        if threshold == 0 || threshold as usize > signers.len() {
+        if threshold == 0 || threshold > signers.len() {
             panic_with_error!(env, MultisigError::InvalidThreshold);
         }
 
@@ -259,13 +260,13 @@ impl MultisigTreasury {
         result
     }
 
-    pub fn propose_withdraw(env: Env, to: Address, amount: i128) -> u32 {
+    pub fn propose_withdraw(env: Env, signer: Address, to: Address, amount: i128) -> u32 {
         if amount <= 0 {
             panic_with_error!(env, MultisigError::InvalidAmount);
         }
-        ensure_destination_allowed(&env, &to);
-        let signer = env.invoker();
+        signer.require_auth();
         validate_signer(&env, &signer);
+        ensure_destination_allowed(&env, &to);
 
         let id = next_request_id(&env);
         let approvals = Vec::from_array(&env, [signer.clone()]);
@@ -288,8 +289,8 @@ impl MultisigTreasury {
         id
     }
 
-    pub fn approve_withdraw(env: Env, request_id: u32) -> bool {
-        let signer = env.invoker();
+    pub fn approve_withdraw(env: Env, signer: Address, request_id: u32) -> bool {
+        signer.require_auth();
         validate_signer(&env, &signer);
 
         let mut request = read_request(&env, request_id);
@@ -385,5 +386,135 @@ impl CustomAccountInterface for MultisigTreasury {
     ) -> Result<(), SmartAccountError> {
         do_check_auth(&env, &signature_payload, &signatures, &auth_contexts)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::token::{Client as TokenClient, StellarAssetClient as TokenAdminClient};
+    use soroban_sdk::{vec, Address, Env, String};
+
+    fn create_token_contract<'a>(
+        env: &Env,
+        admin: &Address,
+    ) -> (TokenClient<'a>, TokenAdminClient<'a>) {
+        let token = env.register_stellar_asset_contract_v2(admin.clone());
+        (
+            TokenClient::new(env, &token.address()),
+            TokenAdminClient::new(env, &token.address()),
+        )
+    }
+
+    fn setup_multisig<'a>(
+        env: &Env,
+    ) -> (
+        MultisigTreasuryClient<'a>,
+        Address,
+        Vec<Address>,
+        Address,
+        TokenClient<'a>,
+        TokenAdminClient<'a>,
+    ) {
+        env.mock_all_auths();
+        let admin = Address::generate(env);
+        let token_admin = Address::generate(env);
+        let (token_client, token_admin_client) = create_token_contract(env, &token_admin);
+
+        let contract_id = env.register(MultisigTreasury, ());
+        let client = MultisigTreasuryClient::new(env, &contract_id);
+
+        let signer_a = Address::generate(env);
+        let signer_b = Address::generate(env);
+        let signer_c = Address::generate(env);
+        let signers = vec![env, signer_a.clone(), signer_b.clone(), signer_c.clone()];
+
+        client.init(
+            &admin,
+            &token_client.address.clone(),
+            &signers,
+            &2,
+            &String::from_str(env, "Treasury"),
+        );
+
+        token_admin_client.mint(&contract_id, &1_000);
+
+        (
+            client,
+            contract_id,
+            signers,
+            signer_b, // default withdrawal recipient
+            token_client,
+            token_admin_client,
+        )
+    }
+
+    #[test]
+    fn init_rejects_invalid_threshold() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let token = Address::generate(&env);
+        let signer_a = Address::generate(&env);
+        let signers = vec![&env, signer_a];
+
+        let contract_id = env.register(MultisigTreasury, ());
+        let client = MultisigTreasuryClient::new(&env, &contract_id);
+
+        let res = client.try_init(
+            &admin,
+            &token,
+            &signers,
+            &0,
+            &String::from_str(&env, "bad"),
+        );
+        assert_eq!(
+            res.err(),
+            Some(Ok(MultisigError::InvalidThreshold.into()))
+        );
+    }
+
+    #[test]
+    fn propose_and_execute_withdrawal() {
+        let env = Env::default();
+        let (client, contract_id, signers, recipient, token_client, _) = setup_multisig(&env);
+        let signer1 = signers.get(0).unwrap();
+        let signer2 = signers.get(2).unwrap();
+
+        // First signer proposes withdrawal
+        let request_id = client.propose_withdraw(&signer1, &recipient, &500);
+        assert_eq!(token_client.balance(&contract_id), 1_000);
+        assert_eq!(token_client.balance(&recipient), 0);
+
+        // Second signer approves, reaching threshold and executing transfer
+        let executed = client.approve_withdraw(&signer2, &request_id);
+        assert!(executed);
+        assert_eq!(token_client.balance(&contract_id), 500);
+        assert_eq!(token_client.balance(&recipient), 500);
+
+        // Request should be marked executed in snapshot
+        let snapshots = client.list_requests();
+        assert_eq!(snapshots.len(), 1);
+        let snapshot = snapshots.get(0).unwrap();
+        assert!(snapshot.executed);
+        assert_eq!(snapshot.approvals.len(), 2);
+    }
+
+    #[test]
+    fn duplicate_approval_rejected() {
+        let env = Env::default();
+        let (client, _contract_id, signers, recipient, _token_client, _) = setup_multisig(&env);
+        let signer1 = signers.get(0).unwrap();
+        let signer2 = signers.get(2).unwrap();
+
+        let request_id = client.propose_withdraw(&signer1, &recipient, &100);
+        let dup_result = client.try_approve_withdraw(&signer1, &request_id);
+        assert_eq!(
+            dup_result.err(),
+            Some(Ok(MultisigError::DuplicateApproval.into()))
+        );
+
+        assert!(client.approve_withdraw(&signer2, &request_id));
     }
 }

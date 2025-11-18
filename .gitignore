@@ -1,5 +1,7 @@
 contracts/target
 contracts/test_snapshots
+contracts/multisig/target
+contracts/multisig/test_snapshots
 backend/.env
 
 # Logs

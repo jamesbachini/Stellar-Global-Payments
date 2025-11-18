@@ -40,8 +40,8 @@ mod multisig_treasury {
 
     #[contractclient(name = "MultisigTreasuryClient")]
     pub trait MultisigTreasuryContract {
-        fn propose_withdraw(env: Env, to: Address, amount: i128) -> u32;
-        fn approve_withdraw(env: Env, request_id: u32) -> bool;
+        fn propose_withdraw(env: Env, signer: Address, to: Address, amount: i128) -> u32;
+        fn approve_withdraw(env: Env, signer: Address, request_id: u32) -> bool;
     }
 }
 
@@ -258,7 +258,8 @@ impl RemittanceAccount {
         }
         ensure_destination_allowed(&env, &multisig)?;
         let client = MultisigTreasuryClient::new(&env, &multisig);
-        client.propose_withdraw(&to, &amount);
+        let signer = env.current_contract_address();
+        client.propose_withdraw(&signer, &to, &amount);
         Ok(())
     }
 
@@ -269,7 +270,8 @@ impl RemittanceAccount {
     ) -> Result<(), RemittanceError> {
         ensure_destination_allowed(&env, &multisig)?;
         let client = MultisigTreasuryClient::new(&env, &multisig);
-        client.approve_withdraw(&request_id);
+        let signer = env.current_contract_address();
+        client.approve_withdraw(&signer, &request_id);
         Ok(())
     }
 }
