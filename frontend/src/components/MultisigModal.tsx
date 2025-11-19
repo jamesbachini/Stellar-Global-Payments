@@ -44,7 +44,7 @@ export function MultisigModal({ open, state, onClose, refresh }: Props) {
   const [localState, setLocalState] = useState<MultisigState>(state);
   const [initiator, setInitiator] = useState<AccountLabel>("A");
   const [destination, setDestination] = useState<AccountLabel>("B");
-  const [amount, setAmount] = useState<string>("0.25");
+  const [amount, setAmount] = useState<string>("0.01");
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [approvalTarget, setApprovalTarget] = useState<string | null>(null);
   const [message, setMessage] = useState<string>("");
@@ -106,9 +106,15 @@ export function MultisigModal({ open, state, onClose, refresh }: Props) {
     setTxModalMessage("");
   };
 
-  const handleModalClose = () => {
+  const handleModalClose = async () => {
+    await refresh();
     resetTxModal();
     onClose();
+  };
+
+  const handleOverlayClose = async () => {
+    await refresh();
+    resetTxModal();
   };
 
   const beginTransactionFlow = (context: TxContext) => {
@@ -259,7 +265,13 @@ export function MultisigModal({ open, state, onClose, refresh }: Props) {
         <div className="modal-content">
           <header>
             <h3>{localState.label}</h3>
-            <button onClick={handleModalClose}>×</button>
+            <button
+              onClick={() => {
+                void handleModalClose();
+              }}
+            >
+              ×
+            </button>
           </header>
 
           <section className="multisig-overview">
@@ -370,26 +382,27 @@ export function MultisigModal({ open, state, onClose, refresh }: Props) {
       {txStatus === "pending" && txContext && (
         <div className="modal multisig-tx-modal">
           <div className="modal-content loading-screen">
-            <div className="transfer-animation">
-              <div className="location-marker start-marker">
-                <div className="marker-pin" />
-                <span className="marker-label">{txContext.fromLabel}</span>
-              </div>
-              <div className="transfer-path">
-                <div className="path-line" />
-                <div className="coin-container">
-                  <svg className="dollar-coin" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="1.5" fill="#8ecae6" />
-                    <text x="12" y="17" fontSize="14" fontWeight="bold" textAnchor="middle" fill="#050b18">
-                      $
-                    </text>
+            <div className="signature-animation">
+              <div className="signature-canvas">
+                <div className="signature-guide" />
+                <svg className="signature-svg" viewBox="0 0 220 90" aria-hidden="true">
+                  <path d="M10 60 Q 40 25 70 60 T 130 60 T 190 55" />
+                </svg>
+                <div className="signature-pen">
+                  <svg viewBox="0 0 64 64" className="pen-icon" aria-hidden="true">
+                    <path
+                      d="M46 4L60 18c2 2 2 5 0 7L26 59l-17 3 4-17L46 4z"
+                      fill="#f8fbff"
+                      opacity="0.9"
+                    />
+                    <path d="M26 59l-8-8" stroke="#050b18" strokeWidth="3" strokeLinecap="round" />
+                    <path d="M30 16l18 18" stroke="#050b18" strokeWidth="2.5" strokeLinecap="round" />
                   </svg>
                 </div>
               </div>
-              <div className="location-marker end-marker">
-                <div className="marker-pin" />
-                <span className="marker-label">{txContext.toLabel}</span>
-              </div>
+              <p className="signature-caption">
+                {txContext.amount ? `Proposal: $${txContext.amount} USDC` : "Collecting approvals"}
+              </p>
             </div>
             <div className="loading-content">
               <h3>{txContext.amount ? `$${txContext.amount} USDC` : "Tx Processing..."}</h3>
@@ -424,7 +437,12 @@ export function MultisigModal({ open, state, onClose, refresh }: Props) {
                   View on Stellar.Expert
                 </a>
               )}
-              <button className="close-button" onClick={resetTxModal}>
+              <button
+                className="close-button"
+                onClick={() => {
+                  void handleOverlayClose();
+                }}
+              >
                 Close
               </button>
             </div>
@@ -438,7 +456,12 @@ export function MultisigModal({ open, state, onClose, refresh }: Props) {
             <div className="error-icon">!</div>
             <h3>Transaction Failed</h3>
             <p>{txModalMessage || "Unable to process transaction."}</p>
-            <button className="close-button" onClick={resetTxModal}>
+            <button
+              className="close-button"
+              onClick={() => {
+                void handleOverlayClose();
+              }}
+            >
               Close
             </button>
           </div>
