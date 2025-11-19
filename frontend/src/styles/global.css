@@ -360,6 +360,10 @@ html, body {
   align-items: end;
 }
 
+.form-grid label {
+  margin-bottom: 0;
+}
+
 .multisig-requests {
   background: rgba(255, 255, 255, 0.01);
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -414,6 +418,7 @@ html, body {
 
 .request-amount strong {
   font-size: 1.3rem;
+  margin-right: 10px;
 }
 
 .signature-grid {
@@ -956,6 +961,34 @@ button.ghost:hover {
   background-size: 200% 100%;
   border-radius: 999px;
   animation: progressFill 5s ease-in-out forwards;
+}
+
+.multisig-tx-modal .modal-content {
+  width: min(520px, 95vw);
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.error-screen {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1rem;
+}
+
+.error-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 77, 77, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: #ff4d4d;
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
 /* Success Screen */

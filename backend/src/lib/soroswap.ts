@@ -1,5 +1,6 @@
+import fetch, { Response } from "node-fetch";
 import { appConfig } from "../config.js";
-import { NetworkError } from "../errors.js";
+import { NetworkError, UnauthorizedError, ValidationError } from "../errors.js";
 import type { SoroswapQuote } from "../types.js";
 
 class SoroswapClient {
@@ -40,9 +41,31 @@ class SoroswapClient {
     }
 
     if (!response.ok) {
-      const message =
+      const baseMessage =
         (data && (data.message || data.error || data.details)) ||
         `Soroswap API request to ${endpoint} failed`;
+
+      const networkHint =
+        this.network === "mainnet"
+          ? "Please confirm that Soroswap currently has liquidity for this pair."
+          : "Set SOROSWAP_QUOTE_NETWORK=mainnet and ensure shared/config/accounts.mainnet.json exists (run ./deploy.sh) to fetch quotes from mainnet while contracts stay on testnet.";
+
+      const message =
+        baseMessage.toLowerCase().includes("quote failed") ||
+        baseMessage.toLowerCase().includes("no quote")
+          ? `${baseMessage}. ${networkHint}`
+          : baseMessage;
+
+      if (response.status === 401 || response.status === 403) {
+        throw new UnauthorizedError(
+          `${message}. Please verify the SOROSWAP_API_KEY environment variable.`
+        );
+      }
+
+      if (response.status >= 400 && response.status < 500) {
+        throw new ValidationError(message);
+      }
+
       throw new NetworkError(message);
     }
 

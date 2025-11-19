@@ -42,11 +42,17 @@ type SoroswapConfig = {
   protocols: string[];
 };
 
+type ForexQuoteAssets = {
+  usdcContractId: string;
+  eurcContractId: string;
+};
+
 type ForexConfig = {
   eurcContractId: string;
   usdcAccountLabel: AccountLabel;
   eurcAccountLabel: AccountLabel;
   soroswap: SoroswapConfig;
+  quoteAssets: ForexQuoteAssets;
 };
 
 class ConfigurationError extends Error {
@@ -86,18 +92,33 @@ function parseNetwork(value: string): NetworkType {
   );
 }
 
-function loadSharedConfig(): SharedConfig {
-  const configFileName = `accounts.${ACTIVE_NETWORK}.json`;
+function parseSoroswapNetwork(value: string): "mainnet" | "testnet" {
+  const normalized = value.toLowerCase();
+  if (normalized === "mainnet" || normalized === "testnet") {
+    return normalized;
+  }
+  throw new ConfigurationError(
+    `Invalid SOROSWAP_QUOTE_NETWORK value: ${value}. Must be "mainnet" or "testnet".`
+  );
+}
+
+function loadSharedConfig(networkKey?: string): SharedConfig {
+  const normalizedKey = (networkKey || ACTIVE_NETWORK).trim().toLowerCase();
+  const configFileName = `accounts.${normalizedKey}.json`;
   const sharedConfigPath = join(__dirname, "../../shared/config", configFileName);
   try {
     const configData = readFileSync(sharedConfigPath, "utf-8");
     return JSON.parse(configData);
   } catch (error) {
+    const helper =
+      normalizedKey === "testnet"
+        ? "./deploy_testnet.sh"
+        : normalizedKey === "mainnet"
+        ? "./deploy.sh"
+        : "./deploy.sh";
     throw new ConfigurationError(
       `Failed to load shared configuration from ${sharedConfigPath}. ` +
-        `Please ensure you have run the correct deployment script:\n` +
-        `  - For testnet: ./deploy_testnet.sh\n` +
-        `  - For mainnet: ./deploy.sh\n` +
+        `Please ensure you have run the correct deployment script (${helper}) for the "${normalizedKey}" network.\n` +
         `Current ACTIVE_NETWORK setting: ${ACTIVE_NETWORK}`
     );
   }
@@ -163,14 +184,27 @@ function loadConfig(): AppConfig {
     const adminPublicKey = getEnv("ADMIN_PUBLIC_KEY", sharedConfig.adminPublicKey);
     const soroswapApiKey = requireEnv("SOROSWAP_API_KEY");
     const soroswapBaseUrl = getEnv("SOROSWAP_API_BASE_URL", "https://api.soroswap.finance");
-    const soroswapProtocolsRaw = getEnv("SOROSWAP_PROTOCOLS", "soroswap,phoenix,aqua")
+    const soroswapQuoteNetwork = parseSoroswapNetwork(
+      getEnv("SOROSWAP_QUOTE_NETWORK", network === "MAINNET" ? "mainnet" : "testnet")
+    );
+    const defaultProtocols =
+      soroswapQuoteNetwork === "mainnet" ? ["soroswap", "phoenix", "aqua"] : ["soroswap"];
+    const soroswapProtocolsRaw = getEnv("SOROSWAP_PROTOCOLS", "")
       .split(",")
       .map((protocol) => protocol.trim())
       .filter(Boolean);
     const soroswapProtocols =
-      soroswapProtocolsRaw.length > 0 ? soroswapProtocolsRaw : ["soroswap", "phoenix", "aqua"];
+      soroswapProtocolsRaw.length > 0 ? soroswapProtocolsRaw : defaultProtocols;
 
-    const soroswapNetwork = network === "MAINNET" ? "mainnet" : "testnet";
+    const activeConfigKey = ACTIVE_NETWORK.trim().toLowerCase();
+    const quoteConfigKey = soroswapQuoteNetwork;
+    const quoteSharedConfig =
+      quoteConfigKey === activeConfigKey ? sharedConfig : loadSharedConfig(quoteConfigKey);
+    if (quoteConfigKey !== activeConfigKey) {
+      console.log(
+        `   Forex quotes: using ${quoteConfigKey.toUpperCase()} liquidity (shared/config/accounts.${quoteConfigKey}.json)`
+      );
+    }
 
     const usdcAccountLabel = getForexAccountLabel(
       "FOREX_USDC_ACCOUNT_LABEL",
@@ -211,10 +245,14 @@ function loadConfig(): AppConfig {
         eurcContractId,
         usdcAccountLabel,
         eurcAccountLabel,
+        quoteAssets: {
+          usdcContractId: quoteSharedConfig.usdcContractId,
+          eurcContractId: quoteSharedConfig.eurcContractId || DEFAULT_EURC_CONTRACT_ID,
+        },
         soroswap: {
           apiKey: soroswapApiKey,
           baseUrl: soroswapBaseUrl,
-          network: soroswapNetwork,
+          network: soroswapQuoteNetwork,
           protocols: soroswapProtocols.length ? soroswapProtocols : ["soroswap", "phoenix", "aqua"],
         },
       },

@@ -99,6 +99,7 @@ The config file contains:
 - `ADMIN_PUBLIC_KEY` - Override admin public key
 - `EXPLORER_BASE_URL` - Override block explorer URL
 - `SOROSWAP_API_BASE_URL` / `SOROSWAP_PROTOCOLS` - Customize Soroswap API routing
+- `SOROSWAP_QUOTE_NETWORK` - Fetch forex quotes from another Soroswap network (requires matching shared/config/accounts.<network>.json)
 - `FOREX_USDC_ACCOUNT_LABEL` / `FOREX_EURC_ACCOUNT_LABEL` - Pick which smart accounts fuel the forex demo
 
 This design ensures:

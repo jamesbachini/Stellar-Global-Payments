@@ -7,28 +7,35 @@ import { ValidationError } from "../errors.js";
 import { toI128, fromI128 } from "../utils/currency.js";
 import { submitForexTransfer } from "./soroban.js";
 
+function getQuoteAssets() {
+  return appConfig.forex.quoteAssets || {
+    usdcContractId: appConfig.usdcContractId,
+    eurcContractId: appConfig.forex.eurcContractId,
+  };
+}
+
 function getAssetsForDirection(direction: ForexQuoteDirection) {
+  const quoteAssets = getQuoteAssets();
   if (direction === "USDC_TO_EURC") {
     return {
-      assetIn: appConfig.usdcContractId,
-      assetOut: appConfig.forex.eurcContractId,
+      assetIn: quoteAssets.usdcContractId,
+      assetOut: quoteAssets.eurcContractId,
     };
   }
   return {
-    assetIn: appConfig.forex.eurcContractId,
-    assetOut: appConfig.usdcContractId,
+    assetIn: quoteAssets.eurcContractId,
+    assetOut: quoteAssets.usdcContractId,
   };
 }
 
 function determineDirectionFromQuote(quote: SoroswapQuote): ForexQuoteDirection {
-  const { usdcContractId } = appConfig;
-  const { eurcContractId } = appConfig.forex;
+  const quoteAssets = getQuoteAssets();
 
-  if (quote.assetIn === usdcContractId && quote.assetOut === eurcContractId) {
+  if (quote.assetIn === quoteAssets.usdcContractId && quote.assetOut === quoteAssets.eurcContractId) {
     return "USDC_TO_EURC";
   }
 
-  if (quote.assetIn === eurcContractId && quote.assetOut === usdcContractId) {
+  if (quote.assetIn === quoteAssets.eurcContractId && quote.assetOut === quoteAssets.usdcContractId) {
     return "EURC_TO_USDC";
   }
 

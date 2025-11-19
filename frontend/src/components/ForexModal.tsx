@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import type {
+  ApiError,
   ForexLocation,
   ForexDirection,
   ForexQuoteResponse,
@@ -32,6 +33,25 @@ const locationMeta: Record<
   },
 };
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (axios.isAxiosError<ApiError>(error)) {
+    const payload = error.response?.data?.error;
+    if (typeof payload === "string" && payload.trim().length > 0) {
+      return payload;
+    }
+    if (payload && typeof payload === "object") {
+      const message = (payload as { message?: string }).message;
+      if (typeof message === "string" && message.trim().length > 0) {
+        return message;
+      }
+    }
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
+};
+
 export function ForexModal({ origin, onClose, refresh }: Props) {
   const [fromLocation, setFromLocation] = useState<ForexLocation>("NEW_YORK");
   const [amount, setAmount] = useState("100");
@@ -56,21 +76,21 @@ export function ForexModal({ origin, onClose, refresh }: Props) {
     setQuote(null);
   }, [fromLocation]);
 
-  if (!origin) return null;
-
-  const toLocation = locationMeta[fromLocation].next;
-  const sourceMeta = locationMeta[fromLocation];
-  const destinationMeta = locationMeta[toLocation];
-  const direction = sourceMeta.direction;
-
-  const quoteExpiresAt = useMemo(() => {
+  const quoteExpiresAt = (() => {
     if (!quote?.expiresAt) return null;
     try {
       return new Date(quote.expiresAt).toLocaleTimeString();
     } catch {
       return null;
     }
-  }, [quote]);
+  })();
+
+  if (!origin) return null;
+
+  const toLocation = locationMeta[fromLocation].next;
+  const sourceMeta = locationMeta[fromLocation];
+  const destinationMeta = locationMeta[toLocation];
+  const direction = sourceMeta.direction;
 
   const fetchQuote = async () => {
     try {
@@ -90,7 +110,7 @@ export function ForexModal({ origin, onClose, refresh }: Props) {
       }
       setQuote(data.data);
     } catch (err) {
-      const error = err instanceof Error ? err.message : "Unable to fetch quote";
+      const error = getErrorMessage(err, "Unable to fetch quote");
       setQuote(null);
       setMessage(error);
     } finally {
@@ -123,7 +143,7 @@ export function ForexModal({ origin, onClose, refresh }: Props) {
       setStatus("success");
       setExplorerUrl(data.data.explorerUrl);
     } catch (err) {
-      const error = err instanceof Error ? err.message : "Swap failed";
+      const error = getErrorMessage(err, "Swap failed");
       setStatus("error");
       setMessage(error);
     }
