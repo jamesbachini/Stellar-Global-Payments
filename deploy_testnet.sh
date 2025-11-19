@@ -20,15 +20,17 @@ WASM_PATH="./contracts/target/wasm32v1-none/release/project.wasm"
 MULTISIG_DIR="./contracts/multisig"
 MULTISIG_WASM_PATH="$MULTISIG_DIR/target/wasm32v1-none/release/multisig_treasury.wasm"
 USDC_CONTRACT_ID="CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA"
-EURC_CONTRACT_ID=""
-SOROSWAP_CONTRACT_ID=""
+EURC_CONTRACT_ID="CCUUDM434BMZMYWYDITHFXHDMIVTGGD6T2I5UKNX5BSLXLW7HVR4MCGZ"
+SOROSWAP_CONTRACT_ID="CCMAPXWVZD4USEKDWRYS7DA4Y3D7E2SDMGBFJUCEXTC7VN6CUBGWPFUS"
 NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+FOREX_USDC_ACCOUNT_LABEL="${FOREX_USDC_ACCOUNT_LABEL:-A}"
+FOREX_EURC_ACCOUNT_LABEL="${FOREX_EURC_ACCOUNT_LABEL:-B}"
 MULTISIG_THRESHOLD="${MULTISIG_THRESHOLD:-3}"
 MULTISIG_LABEL="${MULTISIG_LABEL:-Global Treasury (Testnet)}"
 
 CONTRACT_DIR="./contracts"
 CONFIG_DIR="./shared/config"
-OUTPUT_CONFIG="$CONFIG_DIR/accounts.local.json"
+OUTPUT_CONFIG="$CONFIG_DIR/accounts.testnet.json"
 LABELS=(A B C D)
 declare -A CONTRACT_IDS
 MULTISIG_CONTRACT_ID=""
@@ -218,7 +220,38 @@ for label in "${LABELS[@]}"; do
     --destinations "$destinations_json"
 done
 
-echo -e "${YELLOW}Step 8: Writing config to $OUTPUT_CONFIG${NC}"
+echo -e "${YELLOW}Step 8: Configuring forex routing${NC}"
+
+if [[ "$FOREX_USDC_ACCOUNT_LABEL" == "$FOREX_EURC_ACCOUNT_LABEL" ]]; then
+  echo -e "${RED}FOREX_USDC_ACCOUNT_LABEL and FOREX_EURC_ACCOUNT_LABEL must be different${NC}"
+  exit 1
+fi
+
+configure_forex_account() {
+  local label="$1"
+  local counter_token="$2"
+  local contract_id="${CONTRACT_IDS[$label]:-}"
+  if [[ -z "$contract_id" ]]; then
+    echo -e "${RED}Cannot configure forex for $label – contract not deployed${NC}"
+    exit 1
+  fi
+
+  echo "Configuring forex for account $label ($contract_id)..."
+  stellar contract invoke \
+    --id "$contract_id" \
+    --source-account "$SOURCE_ACCOUNT" \
+    --sign-with-key "$ADMIN_SIGNER" \
+    --network "$NETWORK" \
+    --network-passphrase "$NETWORK_PASSPHRASE" \
+    -- configure_forex \
+    --router "$SOROSWAP_CONTRACT_ID" \
+    --counter_token "$counter_token"
+}
+
+configure_forex_account "$FOREX_USDC_ACCOUNT_LABEL" "$EURC_CONTRACT_ID"
+configure_forex_account "$FOREX_EURC_ACCOUNT_LABEL" "$USDC_CONTRACT_ID"
+
+echo -e "${YELLOW}Step 9: Writing config to $OUTPUT_CONFIG${NC}"
 mkdir -p "$CONFIG_DIR"
 cat > "$OUTPUT_CONFIG" <<EOF
 {

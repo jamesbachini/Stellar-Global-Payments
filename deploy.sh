@@ -30,7 +30,7 @@ MULTISIG_LABEL="${MULTISIG_LABEL:-Global Treasury}"
 
 CONTRACT_DIR="./contracts"
 CONFIG_DIR="./shared/config"
-OUTPUT_CONFIG="$CONFIG_DIR/accounts.local.json"
+OUTPUT_CONFIG="$CONFIG_DIR/accounts.mainnet.json"
 LABELS=(A B C D)
 declare -A CONTRACT_IDS
 MULTISIG_CONTRACT_ID=""

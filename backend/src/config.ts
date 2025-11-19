@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { NetworkType, AccountLabel } from "./types.js";
+import { ACTIVE_NETWORK } from "../../shared/config/network.js";
 
 loadEnv();
 
@@ -86,14 +87,18 @@ function parseNetwork(value: string): NetworkType {
 }
 
 function loadSharedConfig(): SharedConfig {
-  const sharedConfigPath = join(__dirname, "../../shared/config/accounts.local.json");
+  const configFileName = `accounts.${ACTIVE_NETWORK}.json`;
+  const sharedConfigPath = join(__dirname, "../../shared/config", configFileName);
   try {
     const configData = readFileSync(sharedConfigPath, "utf-8");
     return JSON.parse(configData);
   } catch (error) {
     throw new ConfigurationError(
       `Failed to load shared configuration from ${sharedConfigPath}. ` +
-        `Please ensure the deploy script has been run to generate this file.`
+        `Please ensure you have run the correct deployment script:\n` +
+        `  - For testnet: ./deploy_testnet.sh\n` +
+        `  - For mainnet: ./deploy.sh\n` +
+        `Current ACTIVE_NETWORK setting: ${ACTIVE_NETWORK}`
     );
   }
 }
@@ -136,6 +141,10 @@ type AppConfig = {
 
 function loadConfig(): AppConfig {
   try {
+    // Log active network configuration
+    console.log(`\n🌐 Loading configuration for: ${ACTIVE_NETWORK.toUpperCase()}`);
+    console.log(`   Config file: shared/config/accounts.${ACTIVE_NETWORK}.json\n`);
+
     // Load shared configuration from deploy output
     const sharedConfig = loadSharedConfig();
     const network = parseNetwork(sharedConfig.network);
