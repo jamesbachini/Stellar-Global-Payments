@@ -54,7 +54,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 
 export function ForexModal({ origin, onClose, refresh }: Props) {
   const [fromLocation, setFromLocation] = useState<ForexLocation>("NEW_YORK");
-  const [amount, setAmount] = useState("100");
+  const [amount, setAmount] = useState("0.01");
   const [quote, setQuote] = useState<ForexQuoteSummary | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [status, setStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
@@ -68,7 +68,7 @@ export function ForexModal({ origin, onClose, refresh }: Props) {
       setMessage("");
       setQuote(null);
       setExplorerUrl("");
-      setAmount("100");
+      setAmount("0.01");
     }
   }, [origin]);
 
@@ -255,7 +255,7 @@ export function ForexModal({ origin, onClose, refresh }: Props) {
         </label>
         <label>
           <span>To</span>
-          <input value={destinationMeta.city} disabled />
+          <input value={`${destinationMeta.city} - ${destinationMeta.asset}`} disabled />
         </label>
         <label>
           <span>Amount ({sourceMeta.asset})</span>
